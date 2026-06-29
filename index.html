@@ -7,7 +7,7 @@
     <meta name="description" content="本地资产余额快照记账 PWA" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=123" />
+    <link rel="stylesheet" href="./styles.css?v=126" />
     <title>资产快照本</title>
   </head>
   <body>
@@ -273,6 +273,16 @@
                   <span class="sr-only">搜索历史快照备注或标签</span>
                   <input id="snapshotSearchInput" type="search" placeholder="搜索备注或标签" autocomplete="off" />
                 </label>
+                <div class="snapshot-date-filter">
+                  <label>
+                    <span>起始日期</span>
+                    <input id="snapshotDateFrom" type="date" />
+                  </label>
+                  <label>
+                    <span>结束日期</span>
+                    <input id="snapshotDateTo" type="date" />
+                  </label>
+                </div>
                 <div class="panel-actions snapshot-history-actions">
                   <button class="secondary-button small" id="toggleSnapshotLimit" type="button" hidden>查看全部</button>
                   <button class="secondary-button small" id="toggleSnapshotManage" type="button">快照管理</button>
@@ -345,6 +355,30 @@
             </div>
           </div>
           <div id="netWorthContribution" class="contribution-analysis"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading analysis-compact-heading">
+            <div>
+              <h2>快照日历热力图</h2>
+              <span id="snapshotHeatmapSummary">按快照日期查看记录密度</span>
+            </div>
+            <div class="heatmap-controls">
+              <label class="control-field">
+                <select id="snapshotHeatmapMode" class="control-select" aria-label="热力图粒度">
+                  <option value="day">按日</option>
+                  <option value="month">按月</option>
+                </select>
+              </label>
+              <label class="control-field heatmap-year-control">
+                <select id="snapshotHeatmapYear" class="control-select" aria-label="热力图年份"></select>
+              </label>
+              <label class="control-field heatmap-month-control">
+                <select id="snapshotHeatmapMonth" class="control-select" aria-label="热力图月份"></select>
+              </label>
+            </div>
+          </div>
+          <div id="snapshotHeatmap" class="snapshot-heatmap"></div>
         </section>
 
         <section class="panel">
@@ -609,6 +643,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=123" defer></script>
+    <script src="./app.js?v=126" defer></script>
   </body>
 </html>

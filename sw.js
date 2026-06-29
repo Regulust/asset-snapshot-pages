@@ -1,4 +1,4 @@
-const CACHE_NAME = "asset-snapshot-book-v123";
+const CACHE_NAME = "asset-snapshot-book-v126";
 const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (event) => {

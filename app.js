@@ -1,4 +1,6 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
+const APP_VERSION = "v126";
+const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
   { code: "CNY", name: "人民币", symbol: "¥", rate: 1 },
@@ -77,6 +79,8 @@ let editingAccountGroupName = null;
 let snapshotManageMode = false;
 let showAllSnapshots = false;
 let snapshotSearchQuery = "";
+let snapshotDateFrom = "";
+let snapshotDateTo = "";
 let editingSnapshotId = null;
 const selectedSnapshotIds = new Set();
 const selectedSnapshotTagFilters = new Set();
@@ -87,6 +91,9 @@ let snapshotHistoryMode = "edit";
 let selectedReportSnapshotId = null;
 let selectedReportTreemapGroup = null;
 let contributionPeriod = "day";
+let snapshotHeatmapMode = "day";
+let snapshotHeatmapYear = "";
+let snapshotHeatmapMonth = "";
 let analysisTrendPeriod = "month";
 let analysisTrendMode = "total";
 let analysisTrendMetric = "balance";
@@ -573,6 +580,12 @@ function snapshotMatchesTagFilters(snapshot) {
   return [...selectedSnapshotTagFilters].every((tag) => tags.has(tag));
 }
 
+function snapshotMatchesDateRange(snapshot) {
+  if (snapshotDateFrom && snapshot.date < snapshotDateFrom) return false;
+  if (snapshotDateTo && snapshot.date > snapshotDateTo) return false;
+  return true;
+}
+
 function accountGroupName(account) {
   return account.group || "未分组";
 }
@@ -651,6 +664,8 @@ function resetInteractionState() {
   snapshotManageMode = false;
   showAllSnapshots = false;
   snapshotSearchQuery = "";
+  snapshotDateFrom = "";
+  snapshotDateTo = "";
   editingSnapshotId = null;
   selectedSnapshotIds.clear();
   selectedSnapshotTagFilters.clear();
@@ -664,6 +679,9 @@ function resetInteractionState() {
   selectedReportSnapshotId = null;
   selectedReportTreemapGroup = null;
   analysisTrendPeriod = "month";
+  snapshotHeatmapMode = "day";
+  snapshotHeatmapYear = "";
+  snapshotHeatmapMonth = "";
   analysisTrendMode = "total";
   analysisTrendMetric = "balance";
   selectedAnalysisTrendAccountIds.clear();
@@ -962,12 +980,77 @@ function renderDashboard() {
 }
 
 function renderAnalysis() {
-  const total = snapshotTotal(latestSnapshot());
-  renderHealthCards(total);
+  const snapshot = latestSnapshot();
+  const total = snapshotTotal(snapshot);
+  renderStaticAnalysisModules(analysisModuleContext({ snapshot, total, mode: "current" }));
   renderNetWorthContribution();
+  renderSnapshotHeatmap();
   renderAnalysisTrend();
-  renderGainAnalysis(total);
-  renderAssetTreemap(total);
+}
+
+function analysisModuleContext({ snapshot = latestSnapshot(), total = snapshotTotal(snapshot), mode = "current" } = {}) {
+  return { snapshot, total, mode };
+}
+
+function analysisSnapshotText(context) {
+  return context.mode === "historical" ? "该次快照" : "最新快照";
+}
+
+function staticAnalysisModules(context, options = {}) {
+  const snapshotText = analysisSnapshotText(context);
+  const selectedGroupId = options.selectedGroupId ?? selectedTreemapGroup;
+  const exportMode = Boolean(options.exportMode);
+  return [
+    {
+      moduleId: "asset-health",
+      title: "资产健康",
+      description: `按${snapshotText}计算`,
+      targetId: "healthCards",
+      contentClass: "health-grid",
+      html: () => healthCardsHtml(context.total, { interactive: context.mode === "current" }),
+    },
+    {
+      moduleId: "asset-treemap",
+      title: "资产结构 Treemap",
+      description: exportMode ? "按导出时的展开层级保存" : context.mode === "historical" ? "点击分组查看账户明细" : "按分组大类展示，点击矩形查看账户明细",
+      targetId: "assetTreemap",
+      contentClass: "asset-treemap",
+      html: () => assetTreemapHtml(context.total, {
+        selectedGroupId,
+        backId: context.mode === "historical" ? (exportMode ? "exportTreemapBack" : "reportTreemapBack") : "treemapBack",
+        tooltipId: context.mode === "historical" ? (exportMode ? "exportTreemapTooltip" : "reportTreemapTooltip") : "treemapTooltip",
+        groupAttr: context.mode === "historical" ? (exportMode ? "data-export-treemap-group" : "data-report-treemap-group") : "data-treemap-group",
+        detailAttr: context.mode === "historical" ? (exportMode ? "data-export-treemap-detail" : "data-report-treemap-detail") : "data-treemap-detail",
+      }),
+    },
+    {
+      moduleId: "gain-analysis",
+      title: "收益分析",
+      description: `按${snapshotText}成本计算`,
+      targetId: "gainAnalysis",
+      contentClass: "gain-analysis",
+      html: () => gainAnalysisHtml(context.total, { interactive: context.mode === "current" }),
+    },
+  ];
+}
+
+function renderStaticAnalysisModules(context) {
+  staticAnalysisModules(context).forEach((module) => {
+    const target = $(`#${module.targetId}`);
+    if (target) target.innerHTML = module.html();
+  });
+}
+
+function reportAnalysisSectionHtml(module) {
+  return `
+    <section class="report-section" data-analysis-module="${escapeHtml(module.moduleId)}">
+      <div class="report-section-heading">
+        <h3>${escapeHtml(module.title)}</h3>
+        <span>${escapeHtml(module.description)}</span>
+      </div>
+      <div class="${escapeHtml(module.contentClass)}">${module.html()}</div>
+    </section>
+  `;
 }
 
 function renderHealthCards(total) {
@@ -1535,6 +1618,8 @@ function renderHistoricalReport() {
 
 function historicalReportBodyHtml(snapshot, { selectedGroupId = null, exportMode = false } = {}) {
   const total = snapshotTotal(snapshot);
+  const context = analysisModuleContext({ snapshot, total, mode: "historical" });
+  const modules = staticAnalysisModules(context, { selectedGroupId, exportMode });
   return `
     <section class="report-summary-grid">
       <article><span>\u5386\u53f2\u65e5\u671f</span><b>${escapeHtml(snapshot.date)}</b></article>
@@ -1542,33 +1627,7 @@ function historicalReportBodyHtml(snapshot, { selectedGroupId = null, exportMode
       <article><span>\u8d44\u4ea7</span><b>${moneySpan(formatMoney(total.assets))}</b></article>
       <article><span>\u8d1f\u503a</span><b>${moneySpan(formatMoney(total.liabilities))}</b></article>
     </section>
-    <section class="report-section">
-      <div class="report-section-heading">
-        <h3>\u8d44\u4ea7\u5065\u5eb7</h3>
-        <span>\u6309\u8be5\u6b21\u5feb\u7167\u8ba1\u7b97</span>
-      </div>
-      <div class="health-grid">${healthCardsHtml(total, { interactive: false })}</div>
-    </section>
-    <section class="report-section">
-      <div class="report-section-heading">
-        <h3>\u8d44\u4ea7\u7ed3\u6784 Treemap</h3>
-        <span>${exportMode ? "\u6309\u5bfc\u51fa\u65f6\u7684\u5c55\u5f00\u5c42\u7ea7\u4fdd\u5b58" : "\u70b9\u51fb\u5206\u7ec4\u67e5\u770b\u8d26\u6237\u660e\u7ec6"}</span>
-      </div>
-      <div class="asset-treemap">${assetTreemapHtml(total, {
-        selectedGroupId,
-        backId: exportMode ? "exportTreemapBack" : "reportTreemapBack",
-        tooltipId: exportMode ? "exportTreemapTooltip" : "reportTreemapTooltip",
-        groupAttr: exportMode ? "data-export-treemap-group" : "data-report-treemap-group",
-        detailAttr: exportMode ? "data-export-treemap-detail" : "data-report-treemap-detail",
-      })}</div>
-    </section>
-    <section class="report-section">
-      <div class="report-section-heading">
-        <h3>收益分析</h3>
-        <span>按该次快照成本计算</span>
-      </div>
-      <div class="gain-analysis">${gainAnalysisHtml(total, { interactive: false })}</div>
-    </section>
+    ${modules.map(reportAnalysisSectionHtml).join("")}
   `;
 }
 
@@ -2151,6 +2210,169 @@ function contributionRowsHtml(rows, denominator, emptyText) {
   }).join("");
 }
 
+function snapshotHeatmapYears() {
+  return [...new Set(state.snapshots.map((snapshot) => snapshot.date.slice(0, 4)).filter(Boolean))]
+    .sort((a, b) => b.localeCompare(a));
+}
+
+function snapshotHeatmapYearValue() {
+  const years = snapshotHeatmapYears();
+  if (!years.length) return "";
+  if (!snapshotHeatmapYear || !years.includes(snapshotHeatmapYear)) {
+    snapshotHeatmapYear = latestSnapshot()?.date.slice(0, 4) || years[0];
+  }
+  return snapshotHeatmapYear;
+}
+
+function snapshotHeatmapMonths(year) {
+  return [...new Set(state.snapshots
+    .filter((snapshot) => snapshot.date.startsWith(`${year}-`))
+    .map((snapshot) => snapshot.date.slice(5, 7)))]
+    .sort((a, b) => b.localeCompare(a));
+}
+
+function snapshotHeatmapMonthValue(year) {
+  const months = snapshotHeatmapMonths(year);
+  const latest = latestSnapshot();
+  if (!months.length) return "";
+  if (!snapshotHeatmapMonth || !months.includes(snapshotHeatmapMonth)) {
+    snapshotHeatmapMonth = latest?.date.startsWith(`${year}-`) ? latest.date.slice(5, 7) : months[0];
+  }
+  return snapshotHeatmapMonth;
+}
+
+function dateKey(year, month, day) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function heatmapLevel(value, maxValue) {
+  if (!value || !maxValue) return 1;
+  return Math.max(1, Math.min(5, Math.ceil((value / maxValue) * 5)));
+}
+
+function snapshotCountByDate() {
+  const counts = {};
+  state.snapshots.forEach((snapshot) => {
+    counts[snapshot.date] = (counts[snapshot.date] || 0) + 1;
+  });
+  return counts;
+}
+
+function snapshotDatesByMonth(year) {
+  const months = {};
+  state.snapshots
+    .filter((snapshot) => snapshot.date.startsWith(`${year}-`))
+    .forEach((snapshot) => {
+      const month = snapshot.date.slice(5, 7);
+      (months[month] ||= new Set()).add(snapshot.date);
+    });
+  return months;
+}
+
+function renderSnapshotHeatmap() {
+  const container = $("#snapshotHeatmap");
+  const summary = $("#snapshotHeatmapSummary");
+  const yearSelect = $("#snapshotHeatmapYear");
+  const monthSelect = $("#snapshotHeatmapMonth");
+  const modeSelect = $("#snapshotHeatmapMode");
+  if (!container || !summary || !yearSelect || !monthSelect || !modeSelect) return;
+  const years = snapshotHeatmapYears();
+  if (!years.length) {
+    summary.textContent = "暂无快照";
+    yearSelect.innerHTML = "";
+    monthSelect.innerHTML = "";
+    modeSelect.disabled = true;
+    yearSelect.disabled = true;
+    monthSelect.disabled = true;
+    container.innerHTML = `<div class="empty-state">录入快照后可查看日历热力图。</div>`;
+    return;
+  }
+  modeSelect.disabled = false;
+  modeSelect.value = snapshotHeatmapMode;
+  const year = snapshotHeatmapYearValue();
+  yearSelect.disabled = years.length <= 1;
+  yearSelect.innerHTML = years.map((item) => `<option value="${item}" ${item === year ? "selected" : ""}>${item}</option>`).join("");
+  const month = snapshotHeatmapMonthValue(year);
+  const months = snapshotHeatmapMonths(year);
+  monthSelect.disabled = snapshotHeatmapMode !== "day" || months.length <= 1;
+  monthSelect.innerHTML = months.map((item) => `<option value="${item}" ${item === month ? "selected" : ""}>${Number(item)}月</option>`).join("");
+  if (snapshotHeatmapMode === "month") {
+    renderSnapshotHeatmapByMonth({ container, summary, year });
+    return;
+  }
+  renderSnapshotHeatmapByDay({ container, summary, year, month });
+}
+
+function renderSnapshotHeatmapByDay({ container, summary, year, month }) {
+  const counts = snapshotCountByDate();
+  const monthPrefix = `${year}-${month}`;
+  const entries = Object.entries(counts).filter(([date]) => date.startsWith(monthPrefix));
+  if (!entries.length) {
+    summary.textContent = `${year}-${month} · 暂无快照`;
+    container.innerHTML = `<div class="empty-state">该月份暂无快照。</div>`;
+    return;
+  }
+  const maxCount = Math.max(...entries.map(([, count]) => count), 1);
+  const snapshotDays = entries.length;
+  summary.textContent = `${year}-${month} · ${snapshotDays} 个日期有快照 · 共 ${entries.reduce((sum, [, count]) => sum + count, 0)} 条`;
+  const dayCount = new Date(Number(year), Number(month), 0).getDate();
+  const firstDay = new Date(Number(year), Number(month) - 1, 1).getDay();
+  const cells = [
+    ...Array.from({ length: firstDay }, () => `<span class="heatmap-cell is-empty"></span>`),
+    ...Array.from({ length: dayCount }, (_, dayIndex) => {
+      const day = dayIndex + 1;
+      const date = dateKey(year, Number(month), day);
+      const count = counts[date] || 0;
+      const level = count ? heatmapLevel(count, maxCount) : 0;
+      const title = count ? `${date} · ${count} 条快照` : `${date} · 无快照`;
+      return `<span class="heatmap-cell ${count ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${day}</span>`;
+    }),
+  ].join("");
+  container.innerHTML = `
+    ${heatmapLegendHtml("日期快照数")}
+    <section class="heatmap-month heatmap-month-single">
+      <h3>${Number(month)}月</h3>
+      <div class="heatmap-weekdays" aria-hidden="true"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+      <div class="heatmap-days">${cells}</div>
+    </section>
+  `;
+}
+
+function renderSnapshotHeatmapByMonth({ container, summary, year }) {
+  const months = snapshotDatesByMonth(year);
+  const counts = Array.from({ length: 12 }, (_, index) => {
+    const month = String(index + 1).padStart(2, "0");
+    return { month, count: months[month]?.size || 0 };
+  });
+  const maxCount = Math.max(...counts.map((item) => item.count), 1);
+  const activeMonths = counts.filter((item) => item.count > 0);
+  summary.textContent = `${year} · ${activeMonths.length} 个月有快照 · 共 ${activeMonths.reduce((sum, item) => sum + item.count, 0)} 个日期`;
+  container.innerHTML = `
+    ${heatmapLegendHtml("月内快照日期数")}
+    <div class="heatmap-month-summary-grid">
+      ${counts.map((item) => {
+        const level = item.count ? heatmapLevel(item.count, maxCount) : 0;
+        const title = item.count ? `${year}-${item.month} · ${item.count} 个日期有快照` : `${year}-${item.month} · 无快照`;
+        return `
+          <article class="heatmap-month-summary ${item.count ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">
+            <b>${Number(item.month)}月</b>
+            <span>${item.count ? `${item.count} 天` : "无"}</span>
+          </article>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function heatmapLegendHtml(label) {
+  return `
+    <div class="heatmap-legend" aria-hidden="true">
+      <span>${escapeHtml(label)}</span>
+      ${[1, 2, 3, 4, 5].map((level) => `<i class="heatmap-cell density level-${level}"></i>`).join("")}
+    </div>
+  `;
+}
+
 function analysisTrendMetricConfig(metric = analysisTrendMetric) {
   return {
     balance: { label: "余额", totalKey: "totalBalance", groupKey: "groupBalances", accountKey: "accountBalances", color: "#2563eb", empty: "暂无余额趋势数据", valueType: "money" },
@@ -2698,6 +2920,26 @@ function renderAccounts() {
   list.innerHTML = activeHtml + archivedHtml;
 }
 
+function snapshotBalanceFieldHtml(account, sourceSnapshot) {
+  const defaultValue = sourceSnapshot?.balances?.[account.id] ?? "";
+  const defaultCost = snapshotCostForAccount(sourceSnapshot, account);
+  return `
+    <div class="balance-field">
+      <span>${escapeHtml(account.name)} (${account.currency})</span>
+      <div class="balance-field-inputs">
+        <label>
+          <span>余额</span>
+          <input data-balance-account="${escapeHtml(account.id)}" type="number" step="0.01" value="${defaultValue}" placeholder="0" />
+        </label>
+        <label>
+          <span>成本</span>
+          <input data-cost-account="${escapeHtml(account.id)}" type="number" step="0.01" value="${defaultCost ?? ""}" placeholder="选填" />
+        </label>
+      </div>
+    </div>
+  `;
+}
+
 function renderSnapshotForm() {
   const editingSnapshot = editingSnapshotId ? state.snapshots.find((snapshot) => snapshot.id === editingSnapshotId) : null;
   snapshotInlineTagAdding = false;
@@ -2729,25 +2971,7 @@ function renderSnapshotForm() {
           </div>
           <div class="balance-group-fields">
             ${accounts
-              .map((account) => {
-                const defaultValue = sourceSnapshot?.balances?.[account.id] ?? "";
-                const defaultCost = snapshotCostForAccount(sourceSnapshot, account);
-                return `
-                  <div class="balance-field">
-                    <span>${escapeHtml(account.name)} (${account.currency})</span>
-                    <div class="balance-field-inputs">
-                      <label>
-                        <span>余额</span>
-                        <input data-balance-account="${escapeHtml(account.id)}" type="number" step="0.01" value="${defaultValue}" placeholder="0" />
-                      </label>
-                      <label>
-                        <span>成本</span>
-                        <input data-cost-account="${escapeHtml(account.id)}" type="number" step="0.01" value="${defaultCost ?? ""}" placeholder="选填" />
-                      </label>
-                    </div>
-                  </div>
-                `;
-              })
+              .map((account) => snapshotBalanceFieldHtml(account, sourceSnapshot))
               .join("")}
           </div>
         </section>
@@ -2936,7 +3160,11 @@ function renderSnapshots() {
     list.innerHTML = emptyHtml();
     return;
   }
-  const filtered = sorted.filter((snapshot) => snapshotMatchesSearch(snapshot, snapshotSearchQuery) && snapshotMatchesTagFilters(snapshot));
+  const filtered = sorted.filter((snapshot) =>
+    snapshotMatchesSearch(snapshot, snapshotSearchQuery) &&
+    snapshotMatchesTagFilters(snapshot) &&
+    snapshotMatchesDateRange(snapshot)
+  );
   const visibleSnapshots = showAllSnapshots ? filtered : filtered.slice(0, 10);
   $("#toggleSnapshotLimit").hidden = filtered.length <= 10;
   $("#toggleSnapshotLimit").textContent = showAllSnapshots ? "只看最近 10 条" : "查看全部";
@@ -2946,6 +3174,7 @@ function renderSnapshots() {
   if (!snapshotManageMode) {
     const filterParts = [];
     if (compactText(snapshotSearchQuery)) filterParts.push(`搜索：${compactText(snapshotSearchQuery)}`);
+    if (snapshotDateFrom || snapshotDateTo) filterParts.push(`日期：${snapshotDateFrom || "最早"} → ${snapshotDateTo || "最新"}`);
     if (selectedSnapshotTagFilters.size) filterParts.push(`标签：${[...selectedSnapshotTagFilters].join("、")}`);
     $("#snapshotHistoryHint").textContent = `${filterParts.length ? `${filterParts.join(" · ")} · ` : ""}${showAllSnapshots ? "全部" : "最近 10 条"} · 共 ${filtered.length} 条`;
   }
@@ -3001,6 +3230,10 @@ function renderSnapshotFilters() {
     if (!tags.includes(tag)) selectedSnapshotTagFilters.delete(tag);
   });
   if (document.activeElement !== searchInput) searchInput.value = snapshotSearchQuery;
+  const dateFromInput = $("#snapshotDateFrom");
+  const dateToInput = $("#snapshotDateTo");
+  if (dateFromInput && document.activeElement !== dateFromInput) dateFromInput.value = snapshotDateFrom;
+  if (dateToInput && document.activeElement !== dateToInput) dateToInput.value = snapshotDateTo;
   filterList.innerHTML = tags.length
     ? tags.map((tag) => `
       <label class="snapshot-filter-tag">
@@ -3009,7 +3242,7 @@ function renderSnapshotFilters() {
       </label>
     `).join("")
     : '<span class="meta">暂无可筛选标签</span>';
-  clearButton.hidden = !compactText(snapshotSearchQuery) && selectedSnapshotTagFilters.size === 0;
+  clearButton.hidden = !compactText(snapshotSearchQuery) && !snapshotDateFrom && !snapshotDateTo && selectedSnapshotTagFilters.size === 0;
 }
 
 function renderAll() {
@@ -3153,7 +3386,13 @@ function download(filename, content, type) {
 }
 
 function backupPayload() {
-  return JSON.stringify({ ...state, exportedAt: new Date().toISOString(), version: 2 }, null, 2);
+  return JSON.stringify({
+    ...state,
+    exportedAt: new Date().toISOString(),
+    appVersion: APP_VERSION,
+    dataSchemaVersion: DATA_SCHEMA_VERSION,
+    version: DATA_SCHEMA_VERSION,
+  }, null, 2);
 }
 
 function currencySettingsPayload() {
@@ -3447,16 +3686,18 @@ function previewJsonImport(content, sourceName = "JSON 备份") {
   ].filter(Boolean)).size;
   const hasCosts = snapshots.some((snapshot) => Object.keys(snapshot.costs || {}).length > 0) ||
     (imported.accounts || []).some((account) => optionalNumber(account.costBasis) !== null);
+  const schemaVersion = imported.dataSchemaVersion || imported.version || "";
+  const appVersion = imported.appVersion || "";
   const warnings = [];
   if (state.accounts.length || state.snapshots.length) warnings.push("JSON 备份会全量覆盖当前浏览器中的账户、快照和设置。");
-  if (!imported.version) warnings.push("未检测到备份版本号，将按当前兼容逻辑导入。");
+  if (!schemaVersion) warnings.push("未检测到数据结构版本，将按当前兼容逻辑导入。");
   return {
     kind: "json",
     content,
     sourceName,
     title: "JSON 备份预检",
     subtitle: `${sourceName} · 确认后全量覆盖当前数据`,
-    badge: `v${imported.version || "?"}`,
+    badge: appVersion || `schema ${schemaVersion || "?"}`,
     stats: [
       { label: "账户", value: imported.accounts.length },
       { label: "快照", value: snapshots.length },
@@ -3464,6 +3705,8 @@ function previewJsonImport(content, sourceName = "JSON 备份") {
       { label: "标签", value: tags.length },
       { label: "日期范围", value: dateRangeText(snapshots.map((snapshot) => snapshot.date)) },
       { label: "成本字段", value: hasCosts ? "包含" : "未包含" },
+      { label: "应用版本", value: appVersion || "未记录" },
+      { label: "结构版本", value: schemaVersion || "未记录" },
     ],
     warnings,
   };
@@ -3788,6 +4031,19 @@ function bindEvents() {
       renderNetWorthContribution();
     });
   });
+  $("#snapshotHeatmapMode")?.addEventListener("change", (event) => {
+    snapshotHeatmapMode = event.currentTarget.value || "day";
+    renderSnapshotHeatmap();
+  });
+  $("#snapshotHeatmapYear")?.addEventListener("change", (event) => {
+    snapshotHeatmapYear = event.currentTarget.value;
+    snapshotHeatmapMonth = "";
+    renderSnapshotHeatmap();
+  });
+  $("#snapshotHeatmapMonth")?.addEventListener("change", (event) => {
+    snapshotHeatmapMonth = event.currentTarget.value;
+    renderSnapshotHeatmap();
+  });
   $("#analysisTrendMetricSelect")?.addEventListener("change", (event) => {
     analysisTrendMetric = event.currentTarget.value || "balance";
     selectedAnalysisTrendAccountIds.clear();
@@ -3975,6 +4231,16 @@ function bindEvents() {
     selectedSnapshotIds.clear();
     renderSnapshots();
   });
+  $("#snapshotDateFrom").addEventListener("change", (event) => {
+    snapshotDateFrom = event.target.value;
+    selectedSnapshotIds.clear();
+    renderSnapshots();
+  });
+  $("#snapshotDateTo").addEventListener("change", (event) => {
+    snapshotDateTo = event.target.value;
+    selectedSnapshotIds.clear();
+    renderSnapshots();
+  });
   $("#snapshotTagFilterList").addEventListener("change", (event) => {
     const checkbox = event.target.closest("[data-filter-snapshot-tag]");
     if (!checkbox) return;
@@ -3985,6 +4251,8 @@ function bindEvents() {
   });
   $("#clearSnapshotFilters").addEventListener("click", () => {
     snapshotSearchQuery = "";
+    snapshotDateFrom = "";
+    snapshotDateTo = "";
     selectedSnapshotTagFilters.clear();
     selectedSnapshotIds.clear();
     renderSnapshots();
