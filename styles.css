@@ -1966,20 +1966,29 @@ textarea {
   gap: 6px;
 }
 
+.heatmap-controls .control-field {
+  flex: 0 0 auto;
+}
+
 .heatmap-controls .control-select {
-  height: 30px;
-  min-height: 30px;
-  padding-top: 5px;
-  padding-bottom: 5px;
+  height: 28px;
+  min-height: 28px;
+  padding: 0 30px 0 12px;
+  background-position: right 10px center;
   font-size: 12px;
+  line-height: 26px;
 }
 
 .heatmap-year-control .control-select {
-  width: 92px;
+  width: 78px;
 }
 
 .heatmap-month-control .control-select {
-  width: 78px;
+  width: 64px;
+}
+
+.heatmap-controls #snapshotHeatmapMode {
+  width: 72px;
 }
 
 .heatmap-legend {
