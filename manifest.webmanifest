@@ -1,0 +1,17 @@
+{
+  "name": "资产快照本",
+  "short_name": "资产快照",
+  "description": "本地离线资产余额快照记账工具",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
