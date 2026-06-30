@@ -3321,6 +3321,26 @@ function download(filename, content, type) {
   }
 }
 
+async function saveTextFile({ filename, content, type, description, accept }) {
+  if (window.showSaveFilePicker) {
+    try {
+      const handle = await window.showSaveFilePicker({
+        suggestedName: filename,
+        types: [{ description, accept }],
+      });
+      const writable = await handle.createWritable();
+      await writable.write(new Blob([content], { type }));
+      await writable.close();
+      return { ok: true, method: "picker" };
+    } catch (error) {
+      if (error?.name === "AbortError") return { ok: false, cancelled: true };
+      console.error("Save file picker failed", error);
+    }
+  }
+  const ok = download(filename, content, type);
+  return { ok, method: "download" };
+}
+
 function backupPayload() {
   return JSON.stringify({
     ...state,
@@ -4939,13 +4959,23 @@ function bindEvents() {
     closeSettingsSheet($("#rateSettingsSheet"));
   });
 
-  $("#exportJson").addEventListener("click", () => {
+  $("#exportJson").addEventListener("click", async () => {
     prepareBackupText(false);
-    setBackupStatus("正在导出 JSON 备份；若没有出现下载，请展开下方备份文本。 ");
-    const ok = download(`asset-snapshot-backup-${new Date().toISOString().slice(0, 10)}.json`, backupPayload(), "application/json;charset=utf-8");
-    if (!ok) {
+    setBackupStatus("请选择 JSON 备份保存位置，可在保存对话框中修改文件名。");
+    const result = await saveTextFile({
+      filename: `asset-snapshot-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      content: backupPayload(),
+      type: "application/json;charset=utf-8",
+      description: "JSON 备份文件",
+      accept: { "application/json": [".json"] },
+    });
+    if (result.ok) {
+      setBackupStatus(result.method === "picker" ? "JSON 备份已保存。" : "当前浏览器不支持选择保存位置，已按默认下载方式导出 JSON。", "success");
+    } else if (result.cancelled) {
+      setBackupStatus("已取消 JSON 备份导出。");
+    } else {
       prepareBackupText(true);
-      setBackupStatus("浏览器阻止了文件下载，请使用下方 JSON 备份文本。", "error");
+      setBackupStatus("JSON 备份导出失败，请使用下方 JSON 备份文本。", "error");
     }
   });
 
