@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v126";
+const APP_VERSION = "v127";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
