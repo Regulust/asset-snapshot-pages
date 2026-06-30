@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v128";
+const APP_VERSION = "v129";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -92,9 +92,13 @@ let snapshotHistoryMode = "edit";
 let selectedReportSnapshotId = null;
 let selectedReportTreemapGroup = null;
 let contributionPeriod = "day";
+let contributionLookback = 2;
 let snapshotHeatmapMode = "day";
 let snapshotHeatmapYear = "";
 let snapshotHeatmapMonth = "";
+let snapshotHeatmapMetric = "count";
+let snapshotHeatmapActiveOnly = false;
+let snapshotHeatmapRange = "year";
 let analysisTrendPeriod = "month";
 let analysisTrendMode = "total";
 let analysisTrendMetric = "balance";
@@ -118,6 +122,8 @@ const collapsedOverviewGroups = new Set();
 const collapsedAccountGroups = new Set();
 let overviewGroupsInitialized = false;
 let snapshotSubmitInProgress = false;
+let snapshotHistoryView = "list";
+let snapshotHistoryCalendarMonth = "";
 const TREEMAP_OTHER_GROUP_ID = "__other__";
 const TREEMAP_OTHER_GROUP_LABEL = "其它";
 const TREEMAP_MIN_GROUP_SHARE = 0.02;
@@ -497,10 +503,14 @@ function resetInteractionState() {
   snapshotHistoryMode = "edit";
   selectedReportSnapshotId = null;
   selectedReportTreemapGroup = null;
+  contributionLookback = 2;
   analysisTrendPeriod = "month";
   snapshotHeatmapMode = "day";
   snapshotHeatmapYear = "";
   snapshotHeatmapMonth = "";
+  snapshotHeatmapMetric = "count";
+  snapshotHeatmapActiveOnly = false;
+  snapshotHeatmapRange = "year";
   analysisTrendMode = "total";
   analysisTrendMetric = "balance";
   selectedAnalysisTrendAccountIds.clear();
@@ -517,6 +527,8 @@ function resetInteractionState() {
   overviewGroupsInitialized = false;
   snapshotSubmitInProgress = false;
   snapshotRateDraft = null;
+  snapshotHistoryView = "list";
+  snapshotHistoryCalendarMonth = "";
 }
 
 async function deleteAllData() {
@@ -805,6 +817,7 @@ function renderAnalysis() {
   renderNetWorthContribution();
   renderSnapshotHeatmap();
   renderAnalysisTrend();
+  renderCurrencyExposure(total);
 }
 
 function analysisModuleContext({ snapshot = latestSnapshot(), total = snapshotTotal(snapshot), mode = "current" } = {}) {
@@ -1948,12 +1961,14 @@ function renderNetWorthContribution() {
   const container = $("#netWorthContribution");
   const summaryNode = $("#contributionSummary");
   const points = periodSnapshotPoints(contributionPeriod, periodConfig(contributionPeriod).limit);
+  const lookback = Math.max(2, Number(contributionLookback || 2));
   if (points.length < 2) {
     summaryNode.textContent = "至少需要两个周期点";
     container.innerHTML = `<div class="empty-state">暂无足够快照计算净值变动贡献。</div>`;
     return;
   }
-  const previousPoint = points[points.length - 2];
+  const previousIndex = Math.max(0, points.length - lookback);
+  const previousPoint = points[previousIndex];
   const currentPoint = points[points.length - 1];
   const previousTotal = snapshotTotal(previousPoint.snapshot);
   const currentTotal = snapshotTotal(currentPoint.snapshot);
@@ -1978,12 +1993,13 @@ function renderNetWorthContribution() {
     .sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta));
   const positiveRows = rows.filter((row) => row.delta > 0);
   const negativeRows = rows.filter((row) => row.delta < 0);
-  summaryNode.innerHTML = `${previousPoint.title} → ${currentPoint.title} · 净值变动 <span class="${netChange >= 0 ? "positive" : "negative"}">${signedMoneyHtml(netChange)}</span>`;
+  const rangeText = previousIndex === points.length - 2 ? "上一点" : `近 ${points.length - previousIndex} 点`;
+  summaryNode.innerHTML = `${previousPoint.title} → ${currentPoint.title} · ${rangeText}净值变动 <span class="${netChange >= 0 ? "positive" : "negative"}">${signedMoneyHtml(netChange)}</span>`;
   container.innerHTML = `
     <div class="contribution-total-card ${netChange >= 0 ? "positive" : "negative"}">
       <span>${escapeHtml(trendPeriodConfig(contributionPeriod).label)}净值变动</span>
       <b>${signedMoneyHtml(netChange)}</b>
-      <small>${rows.length} 个账户有变化</small>
+      <small>${rangeText} · ${rows.length} 个账户有变化</small>
     </div>
     <div class="contribution-columns">
       <section class="contribution-column">
@@ -2008,6 +2024,8 @@ function renderContributionControls() {
   $$("[data-contribution-period]").forEach((button) => {
     button.classList.toggle("active", button.dataset.contributionPeriod === contributionPeriod);
   });
+  const select = $("#contributionLookbackSelect");
+  if (select) select.value = String(contributionLookback);
 }
 
 function contributionRowsHtml(rows, denominator, emptyText) {
@@ -2069,12 +2087,71 @@ function heatmapLevel(value, maxValue) {
   return Math.max(1, Math.min(5, Math.ceil((value / maxValue) * 5)));
 }
 
+function snapshotHeatmapMetricConfig(metric = snapshotHeatmapMetric) {
+  return {
+    count: { label: "快照数", legend: "快照记录数", valueLabel: "快照", format: (value) => `${value} 条`, absolute: false },
+    net: { label: "净值变化", legend: "净值变化幅度", valueLabel: "净值变化", format: (value) => signedMoneyHtml(value), absolute: true },
+    cost: { label: "成本变化", legend: "成本变化幅度", valueLabel: "成本变化", format: (value) => signedMoneyHtml(value), absolute: true },
+    gain: { label: "收益变化", legend: "收益变化幅度", valueLabel: "收益变化", format: (value) => signedMoneyHtml(value), absolute: true },
+  }[metric] || { label: "快照数", legend: "快照记录数", valueLabel: "快照", format: (value) => `${value} 条`, absolute: false };
+}
+
 function snapshotCountByDate() {
   const counts = {};
   state.snapshots.forEach((snapshot) => {
     counts[snapshot.date] = (counts[snapshot.date] || 0) + 1;
   });
   return counts;
+}
+
+function snapshotHeatmapDailyStats() {
+  const sorted = [...state.snapshots].sort((a, b) => a.date.localeCompare(b.date));
+  const counts = snapshotCountByDate();
+  let previous = null;
+  return sorted.map((snapshot) => {
+    const total = snapshotTotal(snapshot);
+    const gain = gainAnalysisSummary(total, { filtered: false });
+    const stat = {
+      date: snapshot.date,
+      month: snapshot.date.slice(0, 7),
+      count: counts[snapshot.date] || 1,
+      net: previous ? total.net - previous.net : 0,
+      cost: previous ? gain.totalCost - previous.cost : 0,
+      gain: previous ? gain.totalGain - previous.gain : 0,
+      netTotal: total.net,
+      costTotal: gain.totalCost,
+      gainTotal: gain.totalGain,
+    };
+    previous = { net: total.net, cost: gain.totalCost, gain: gain.totalGain };
+    return stat;
+  });
+}
+
+function heatmapMetricRawValue(stat) {
+  return Number(stat?.[snapshotHeatmapMetric] || 0);
+}
+
+function heatmapMetricDensityValue(stat) {
+  const value = heatmapMetricRawValue(stat);
+  return snapshotHeatmapMetricConfig().absolute ? Math.abs(value) : value;
+}
+
+function heatmapMetricHtml(value) {
+  return snapshotHeatmapMetricConfig().format(value);
+}
+
+function monthlyHeatmapStats() {
+  const buckets = {};
+  snapshotHeatmapDailyStats().forEach((stat) => {
+    const bucket = buckets[stat.month] ||= { monthKey: stat.month, count: 0, days: 0, net: 0, cost: 0, gain: 0, dates: [] };
+    bucket.count += stat.count;
+    bucket.days += 1;
+    bucket.net += stat.net;
+    bucket.cost += stat.cost;
+    bucket.gain += stat.gain;
+    bucket.dates.push(stat);
+  });
+  return Object.values(buckets).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
 }
 
 function snapshotDatesByMonth(year) {
@@ -2094,6 +2171,9 @@ function renderSnapshotHeatmap() {
   const yearSelect = $("#snapshotHeatmapYear");
   const monthSelect = $("#snapshotHeatmapMonth");
   const modeSelect = $("#snapshotHeatmapMode");
+  const metricSelect = $("#snapshotHeatmapMetric");
+  const rangeSelect = $("#snapshotHeatmapRange");
+  const activeOnlyInput = $("#snapshotHeatmapActiveOnly");
   if (!container || !summary || !yearSelect || !monthSelect || !modeSelect) return;
   const years = snapshotHeatmapYears();
   if (!years.length) {
@@ -2103,13 +2183,28 @@ function renderSnapshotHeatmap() {
     modeSelect.disabled = true;
     yearSelect.disabled = true;
     monthSelect.disabled = true;
+    if (metricSelect) metricSelect.disabled = true;
+    if (rangeSelect) rangeSelect.disabled = true;
+    if (activeOnlyInput) activeOnlyInput.disabled = true;
     container.innerHTML = `<div class="empty-state">录入快照后可查看日历热力图。</div>`;
     return;
   }
   modeSelect.disabled = false;
   modeSelect.value = snapshotHeatmapMode;
+  if (metricSelect) {
+    metricSelect.disabled = false;
+    metricSelect.value = snapshotHeatmapMetric;
+  }
+  if (rangeSelect) {
+    rangeSelect.disabled = snapshotHeatmapMode !== "month";
+    rangeSelect.value = snapshotHeatmapRange;
+  }
+  if (activeOnlyInput) {
+    activeOnlyInput.disabled = snapshotHeatmapMode !== "month";
+    activeOnlyInput.checked = snapshotHeatmapActiveOnly;
+  }
   const year = snapshotHeatmapYearValue();
-  yearSelect.disabled = years.length <= 1;
+  yearSelect.disabled = snapshotHeatmapMode === "month" && snapshotHeatmapRange !== "year" ? true : years.length <= 1;
   yearSelect.innerHTML = years.map((item) => `<option value="${item}" ${item === year ? "selected" : ""}>${item}</option>`).join("");
   const month = snapshotHeatmapMonthValue(year);
   const months = snapshotHeatmapMonths(year);
@@ -2123,17 +2218,19 @@ function renderSnapshotHeatmap() {
 }
 
 function renderSnapshotHeatmapByDay({ container, summary, year, month }) {
-  const counts = snapshotCountByDate();
+  const stats = snapshotHeatmapDailyStats();
+  const byDate = Object.fromEntries(stats.map((stat) => [stat.date, stat]));
   const monthPrefix = `${year}-${month}`;
-  const entries = Object.entries(counts).filter(([date]) => date.startsWith(monthPrefix));
+  const entries = stats.filter((stat) => stat.date.startsWith(monthPrefix));
   if (!entries.length) {
     summary.textContent = `${year}-${month} · 暂无快照`;
     container.innerHTML = `<div class="empty-state">该月份暂无快照。</div>`;
     return;
   }
-  const maxCount = Math.max(...entries.map(([, count]) => count), 1);
+  const metric = snapshotHeatmapMetricConfig();
+  const maxCount = Math.max(...entries.map((stat) => heatmapMetricDensityValue(stat)), 1);
   const snapshotDays = entries.length;
-  summary.textContent = `${year}-${month} · ${snapshotDays} 个日期有快照 · 共 ${entries.reduce((sum, [, count]) => sum + count, 0)} 条`;
+  summary.textContent = `${year}-${month} · ${snapshotDays} 个日期有快照 · ${metric.label}`;
   const dayCount = new Date(Number(year), Number(month), 0).getDate();
   const firstDay = new Date(Number(year), Number(month) - 1, 1).getDay();
   const cells = [
@@ -2141,44 +2238,73 @@ function renderSnapshotHeatmapByDay({ container, summary, year, month }) {
     ...Array.from({ length: dayCount }, (_, dayIndex) => {
       const day = dayIndex + 1;
       const date = dateKey(year, Number(month), day);
-      const count = counts[date] || 0;
-      const level = count ? heatmapLevel(count, maxCount) : 0;
-      const title = count ? `${date} · ${count} 条快照` : `${date} · 无快照`;
-      return `<span class="heatmap-cell ${count ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${day}</span>`;
+      const stat = byDate[date];
+      const value = heatmapMetricDensityValue(stat);
+      const level = stat ? heatmapLevel(value || 1, maxCount) : 0;
+      const title = stat ? `${date} · ${metric.valueLabel} ${metric.format(heatmapMetricRawValue(stat)).replace(/<[^>]+>/g, "")}` : `${date} · 无快照`;
+      return `<span class="heatmap-cell ${stat ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${day}</span>`;
     }),
   ].join("");
   container.innerHTML = `
-    ${heatmapLegendHtml("日期快照数")}
+    ${heatmapLegendHtml(metric.legend)}
     <section class="heatmap-month heatmap-month-single">
       <h3>${Number(month)}月</h3>
       <div class="heatmap-weekdays" aria-hidden="true"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
       <div class="heatmap-days">${cells}</div>
     </section>
+    ${heatmapDetailPanelHtml(entries.slice().sort((a, b) => heatmapMetricDensityValue(b) - heatmapMetricDensityValue(a)), `${year}-${month} 明细`)}
   `;
 }
 
 function renderSnapshotHeatmapByMonth({ container, summary, year }) {
-  const months = snapshotDatesByMonth(year);
-  const counts = Array.from({ length: 12 }, (_, index) => {
-    const month = String(index + 1).padStart(2, "0");
-    return { month, count: months[month]?.size || 0 };
-  });
-  const maxCount = Math.max(...counts.map((item) => item.count), 1);
-  const activeMonths = counts.filter((item) => item.count > 0);
-  summary.textContent = `${year} · ${activeMonths.length} 个月有快照 · 共 ${activeMonths.reduce((sum, item) => sum + item.count, 0)} 个日期`;
+  const metric = snapshotHeatmapMetricConfig();
+  const allMonths = monthlyHeatmapStats();
+  let counts = [];
+  if (snapshotHeatmapRange === "year") {
+    const byMonth = Object.fromEntries(allMonths.filter((item) => item.monthKey.startsWith(`${year}-`)).map((item) => [item.monthKey.slice(5), item]));
+    counts = Array.from({ length: 12 }, (_, index) => {
+      const month = String(index + 1).padStart(2, "0");
+      return byMonth[month] || { monthKey: `${year}-${month}`, count: 0, days: 0, net: 0, cost: 0, gain: 0, dates: [] };
+    });
+  } else {
+    counts = allMonths.slice(-Number(snapshotHeatmapRange || 12));
+  }
+  if (snapshotHeatmapActiveOnly) counts = counts.filter((item) => item.days > 0);
+  const maxCount = Math.max(...counts.map((item) => heatmapMetricDensityValue(item)), 1);
+  const activeMonths = counts.filter((item) => item.days > 0);
+  summary.textContent = `${snapshotHeatmapRange === "year" ? year : `近 ${snapshotHeatmapRange} 月`} · ${activeMonths.length} 个月有快照 · ${metric.label}`;
   container.innerHTML = `
-    ${heatmapLegendHtml("月内快照日期数")}
+    ${heatmapLegendHtml(metric.legend)}
     <div class="heatmap-month-summary-grid">
       ${counts.map((item) => {
-        const level = item.count ? heatmapLevel(item.count, maxCount) : 0;
-        const title = item.count ? `${year}-${item.month} · ${item.count} 个日期有快照` : `${year}-${item.month} · 无快照`;
+        const value = heatmapMetricDensityValue(item);
+        const level = item.days ? heatmapLevel(value || 1, maxCount) : 0;
+        const title = item.days ? `${item.monthKey} · ${item.days} 个日期有快照` : `${item.monthKey} · 无快照`;
         return `
-          <article class="heatmap-month-summary ${item.count ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">
-            <b>${Number(item.month)}月</b>
-            <span>${item.count ? `${item.count} 天` : "无"}</span>
+          <article class="heatmap-month-summary ${item.days ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" role="button" tabindex="${item.days ? "0" : "-1"}" data-heatmap-month="${escapeHtml(item.monthKey)}">
+            <b>${snapshotHeatmapRange === "year" ? `${Number(item.monthKey.slice(5))}月` : item.monthKey}</b>
+            <span>${item.days ? `${item.days} 天 · ${metric.format(heatmapMetricRawValue(item))}` : "无"}</span>
           </article>
         `;
       }).join("")}
+    </div>
+    ${heatmapDetailPanelHtml(activeMonths.slice().sort((a, b) => heatmapMetricDensityValue(b) - heatmapMetricDensityValue(a)), "月份摘要")}
+  `;
+}
+
+function heatmapDetailPanelHtml(items, title) {
+  const metric = snapshotHeatmapMetricConfig();
+  const rows = items.slice(0, 6);
+  if (!rows.length) return `<div class="heatmap-detail-panel"><h3>${escapeHtml(title)}</h3><div class="empty-state">暂无可展示明细。</div></div>`;
+  return `
+    <div class="heatmap-detail-panel">
+      <h3>${escapeHtml(title)}</h3>
+      ${rows.map((item) => `
+        <div class="heatmap-detail-row">
+          <span>${escapeHtml(item.date || item.monthKey)} · ${item.count || item.days || 0} ${item.date ? "条" : "天"}</span>
+          <b>${metric.format(heatmapMetricRawValue(item))}</b>
+        </div>
+      `).join("")}
     </div>
   `;
 }
@@ -2603,6 +2729,44 @@ function renderTypeBreakdown(total) {
     .join("");
 }
 
+function renderCurrencyExposure(total = snapshotTotal(latestSnapshot())) {
+  const container = $("#currencyExposure");
+  const summary = $("#currencyExposureSummary");
+  if (!container || !summary) return;
+  const rows = total.accounts
+    .filter((row) => row.account.includeInNetWorth !== false && Number(row.converted || 0) !== 0)
+    .reduce((result, row) => {
+      const code = row.account.currency || state.settings.baseCurrency;
+      const bucket = result[code] ||= { code, raw: 0, converted: 0, accounts: 0 };
+      bucket.raw += Number(row.raw || 0);
+      bucket.converted += Number(row.converted || 0);
+      bucket.accounts += 1;
+      return result;
+    }, {});
+  const entries = Object.values(rows).sort((a, b) => Math.abs(b.converted) - Math.abs(a.converted));
+  if (!entries.length) {
+    summary.textContent = "暂无可统计的币种暴露";
+    container.innerHTML = emptyHtml();
+    return;
+  }
+  const denominator = Math.max(entries.reduce((sum, item) => sum + Math.abs(item.converted), 0), 1);
+  summary.textContent = `${entries.length} 个币种 · 按${state.settings.baseCurrency}折算`;
+  const colors = ["#2563eb", "#059669", "#b45309", "#7c3aed", "#dc2626", "#0891b2"];
+  container.innerHTML = entries.map((item, index) => {
+    const percent = Math.abs(item.converted) / denominator;
+    const config = currencyConfig(item.code);
+    return `
+      <article class="currency-exposure-card">
+        <div class="currency-exposure-row">
+          <span>${escapeHtml(item.code)} · ${escapeHtml(config.name || item.code)} · ${item.accounts} 个账户</span>
+          <b>${moneySpan(formatMoney(item.converted))} · ${(percent * 100).toFixed(1)}%</b>
+        </div>
+        <div class="currency-exposure-track" aria-hidden="true"><i style="width:${Math.max(percent * 100, 2).toFixed(2)}%; background:${colors[index % colors.length]};"></i></div>
+      </article>
+    `;
+  }).join("");
+}
+
 function renderAccountTable(total) {
   $("#toggleOverviewAccountSort").textContent = overviewAccountSortMode ? "完成" : "排序";
   $("#toggleOverviewAccountSort").classList.toggle("primary-button", overviewAccountSortMode);
@@ -2948,6 +3112,16 @@ async function saveInlineSnapshotTag() {
   renderTagManager();
 }
 
+function filteredSnapshotsSorted() {
+  return [...state.snapshots]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .filter((snapshot) =>
+      snapshotMatchesSearch(snapshot, snapshotSearchQuery) &&
+      snapshotMatchesTagFilters(snapshot) &&
+      snapshotMatchesDateRange(snapshot)
+    );
+}
+
 function renderSnapshots() {
   const list = $("#snapshotList");
   list.querySelectorAll(".snapshot-month-group[open]").forEach((group) => {
@@ -2969,6 +3143,9 @@ function renderSnapshots() {
   $("#toggleSnapshotManage").classList.toggle("secondary-button", !snapshotManageMode);
   $("#deleteSelectedSnapshots").hidden = !snapshotManageMode;
   $("#deleteSelectedSnapshots").disabled = selectedSnapshotIds.size === 0;
+  $("#selectFilteredSnapshots").hidden = !snapshotManageMode || filteredSnapshotsSorted().length === 0;
+  $("#selectFilteredSnapshots").textContent = selectedSnapshotIds.size ? "取消选择" : "筛选全选";
+  $("#toggleSnapshotHistoryView").textContent = snapshotHistoryView === "calendar" ? "列表视图" : "日历视图";
   if (reportMode) {
     snapshotManageMode = false;
     $("#toggleSnapshotManage").hidden = true;
@@ -2982,11 +3159,7 @@ function renderSnapshots() {
     list.innerHTML = emptyHtml();
     return;
   }
-  const filtered = sorted.filter((snapshot) =>
-    snapshotMatchesSearch(snapshot, snapshotSearchQuery) &&
-    snapshotMatchesTagFilters(snapshot) &&
-    snapshotMatchesDateRange(snapshot)
-  );
+  const filtered = filteredSnapshotsSorted();
   const visibleSnapshots = showAllSnapshots ? filtered : filtered.slice(0, 10);
   $("#toggleSnapshotLimit").hidden = filtered.length <= 10;
   $("#toggleSnapshotLimit").textContent = showAllSnapshots ? "只看最近 10 条" : "查看全部";
@@ -3003,6 +3176,10 @@ function renderSnapshots() {
   if (filtered.length === 0) {
     $("#toggleSnapshotLimit").hidden = true;
     list.innerHTML = emptyHtml();
+    return;
+  }
+  if (snapshotHistoryView === "calendar") {
+    list.innerHTML = snapshotHistoryCalendarHtml(visibleSnapshots);
     return;
   }
   const groups = visibleSnapshots.reduce((result, snapshot) => {
@@ -3064,6 +3241,9 @@ function renderSnapshots() {
   $("#toggleSnapshotManage").classList.toggle("secondary-button", !snapshotManageMode);
   $("#deleteSelectedSnapshots").hidden = !snapshotManageMode;
   $("#deleteSelectedSnapshots").disabled = selectedSnapshotIds.size === 0;
+  $("#selectFilteredSnapshots").hidden = !snapshotManageMode || filteredSnapshotsSorted().length === 0;
+  $("#selectFilteredSnapshots").textContent = selectedSnapshotIds.size ? "取消选择" : "筛选全选";
+  $("#toggleSnapshotHistoryView").textContent = snapshotHistoryView === "calendar" ? "列表视图" : "日历视图";
   if (reportMode) {
     snapshotManageMode = false;
     $("#toggleSnapshotManage").hidden = true;
@@ -3077,11 +3257,7 @@ function renderSnapshots() {
     list.innerHTML = emptyHtml();
     return;
   }
-  const filtered = sorted.filter((snapshot) =>
-    snapshotMatchesSearch(snapshot, snapshotSearchQuery) &&
-    snapshotMatchesTagFilters(snapshot) &&
-    snapshotMatchesDateRange(snapshot)
-  );
+  const filtered = filteredSnapshotsSorted();
   const visibleSnapshots = showAllSnapshots ? filtered : filtered.slice(0, 10);
   $("#toggleSnapshotLimit").hidden = filtered.length <= 10;
   $("#toggleSnapshotLimit").textContent = showAllSnapshots ? "只看最近 10 条" : "查看全部";
@@ -3098,6 +3274,10 @@ function renderSnapshots() {
   if (filtered.length === 0) {
     $("#toggleSnapshotLimit").hidden = true;
     list.innerHTML = emptyHtml();
+    return;
+  }
+  if (snapshotHistoryView === "calendar") {
+    list.innerHTML = snapshotHistoryCalendarHtml(visibleSnapshots);
     return;
   }
   const groups = visibleSnapshots.reduce((result, snapshot) => {
@@ -3155,6 +3335,64 @@ function renderSnapshots() {
   list.querySelectorAll('[data-indeterminate="true"]').forEach((input) => {
     input.indeterminate = true;
   });
+}
+
+function snapshotHistoryCalendarMonths(snapshots) {
+  return [...new Set(snapshots.map((snapshot) => snapshot.date.slice(0, 7)).filter(Boolean))]
+    .sort((a, b) => b.localeCompare(a));
+}
+
+function snapshotHistoryCalendarMonthValue(snapshots) {
+  const months = snapshotHistoryCalendarMonths(snapshots);
+  if (!months.length) return "";
+  if (!snapshotHistoryCalendarMonth || !months.includes(snapshotHistoryCalendarMonth)) {
+    snapshotHistoryCalendarMonth = months[0];
+  }
+  return snapshotHistoryCalendarMonth;
+}
+
+function snapshotHistoryCalendarHtml(snapshots) {
+  const months = snapshotHistoryCalendarMonths(snapshots);
+  const selectedMonth = snapshotHistoryCalendarMonthValue(snapshots);
+  if (!selectedMonth) return emptyHtml();
+  const monthIndex = months.indexOf(selectedMonth);
+  const monthSnapshots = snapshots.filter((snapshot) => snapshot.date.startsWith(`${selectedMonth}-`));
+  const [year, monthNumber] = selectedMonth.split("-").map(Number);
+  const byDate = {};
+  monthSnapshots.forEach((snapshot) => {
+    (byDate[snapshot.date] ||= []).push(snapshot);
+  });
+  const dayCount = new Date(year, monthNumber, 0).getDate();
+  const firstDay = new Date(year, monthNumber - 1, 1).getDay();
+  const cells = [
+    ...Array.from({ length: firstDay }, () => `<span class="snapshot-calendar-day is-empty"></span>`),
+    ...Array.from({ length: dayCount }, (_, index) => {
+      const day = index + 1;
+      const date = dateKey(year, monthNumber, day);
+      const dateSnapshots = byDate[date] || [];
+      const latest = dateSnapshots[0];
+      if (!latest) return `<span class="snapshot-calendar-day">${day}</span>`;
+      const total = snapshotTotal(latest);
+      return `<button class="snapshot-calendar-day has-snapshot" data-edit-snapshot="${escapeHtml(latest.id)}" type="button" title="${escapeHtml(`${date} · ${dateSnapshots.length} 条 · ${formatMoney(total.net)}`)}"><span>${day}</span><small>${dateSnapshots.length}</small></button>`;
+    }),
+  ].join("");
+  return `
+    <div class="snapshot-calendar">
+      <div class="snapshot-calendar-controls">
+        <button class="icon-button secondary-icon snapshot-calendar-arrow" data-history-calendar-step="prev" type="button" aria-label="查看上个月" ${monthIndex >= months.length - 1 ? "disabled" : ""}>&lt;</button>
+        <label class="control-field snapshot-calendar-month-select">
+          <select id="snapshotHistoryCalendarMonth" class="control-select" aria-label="选择历史快照月份">
+            ${months.map((month) => `<option value="${month}" ${month === selectedMonth ? "selected" : ""}>${month}</option>`).join("")}
+          </select>
+        </label>
+        <button class="icon-button secondary-icon snapshot-calendar-arrow" data-history-calendar-step="next" type="button" aria-label="查看下个月" ${monthIndex <= 0 ? "disabled" : ""}>&gt;</button>
+      </div>
+      <section class="snapshot-calendar-month">
+        <div class="heatmap-weekdays" aria-hidden="true"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+        <div class="snapshot-calendar-grid">${cells}</div>
+      </section>
+    </div>
+  `;
 }
 
 function renderSnapshotFilters() {
@@ -3453,14 +3691,19 @@ function setCurrencyConfigStatus(message, kind = "success") {
   status.dataset.kind = kind;
 }
 
-function importValidationError(message) {
+function importValidationError(message, details = []) {
   const error = new Error(message);
   error.isImportValidationError = true;
+  error.details = details;
   return error;
 }
 
 function ensureImportValid(condition, message) {
   if (!condition) throw importValidationError(message);
+}
+
+function collectImportIssue(issues, condition, message) {
+  if (!condition) issues.push(message);
 }
 
 function isPlainObject(value) {
@@ -3485,6 +3728,126 @@ function ensureFiniteMap(map, fieldName, itemName) {
     ensureImportValid(key !== "", `${itemName} 的 ${fieldName} 包含空键。`);
     ensureImportValid(Number.isFinite(Number(value)), `${itemName} 的 ${fieldName} 包含非数字金额。`);
   });
+}
+
+function summarizeImportDetails(details, limit = 12) {
+  const unique = [...new Set(details.filter(Boolean))];
+  if (unique.length <= limit) return unique;
+  return [...unique.slice(0, limit), `还有 ${unique.length - limit} 项未展开。`];
+}
+
+function importKeyMapWithAccountFallback(map, accountsById, accountsByName) {
+  const result = {};
+  Object.entries(map || {}).forEach(([key, value]) => {
+    const trimmedKey = String(key || "").trim();
+    const account = accountsById.get(trimmedKey) || accountsByName.get(trimmedKey);
+    result[account?.id || trimmedKey] = Number(value);
+  });
+  return result;
+}
+
+function normalizeJsonImportData(imported) {
+  const issues = [];
+  const repairs = [];
+  const warnings = [];
+  collectImportIssue(issues, isPlainObject(imported), "JSON 根内容不是有效对象。");
+  if (issues.length) throw importValidationError("JSON 结构无法识别。", issues);
+  collectImportIssue(issues, Array.isArray(imported.accounts), "缺少账户列表 accounts。");
+  collectImportIssue(issues, Array.isArray(imported.snapshots), "缺少快照列表 snapshots。");
+  collectImportIssue(issues, imported.settings === undefined || isPlainObject(imported.settings), "settings 设置不是有效对象。");
+  if (issues.length) throw importValidationError("JSON 缺少基础数据结构。", issues);
+
+  const data = {
+    ...imported,
+    settings: isPlainObject(imported.settings) ? { ...imported.settings } : {},
+    accounts: [],
+    snapshots: [],
+  };
+  if (imported.settings === undefined) repairs.push("缺少 settings 设置，已使用当前版本默认设置。");
+  const missingSettings = Object.keys(defaultState.settings).filter((key) => data.settings[key] === undefined);
+  if (missingSettings.length) {
+    repairs.push(`缺少设置项 ${missingSettings.join("、")}，已使用默认值。`);
+    missingSettings.forEach((key) => {
+      data.settings[key] = structuredClone(defaultState.settings[key]);
+    });
+  }
+  data.settings.accountTypeGroups = normalizeTypeGroups(data.settings.accountTypeGroups);
+  const baseCurrency = String(data.settings.baseCurrency || defaultState.settings.baseCurrency).trim().toUpperCase();
+
+  const usedIds = new Set();
+  const accountIdRemap = new Map();
+  const accountsById = new Map();
+  const accountsByName = new Map();
+  imported.accounts.forEach((account, index) => {
+    const itemName = `第 ${index + 1} 个账户`;
+    collectImportIssue(issues, isPlainObject(account), `${itemName} 不是有效对象。`);
+    if (!isPlainObject(account)) return;
+    const normalized = { ...account };
+    const originalId = String(account.id || "").trim();
+    if (!originalId || usedIds.has(originalId)) {
+      normalized.id = id();
+      repairs.push(`${itemName} 缺少账户 ID 或 ID 重复，已生成新 ID。`);
+    } else {
+      normalized.id = originalId;
+    }
+    usedIds.add(normalized.id);
+    if (originalId && originalId !== normalized.id) accountIdRemap.set(originalId, normalized.id);
+    if (!String(account.name || "").trim()) {
+      normalized.name = `未命名账户 ${index + 1}`;
+      repairs.push(`${itemName} 缺少账户名称，已设为 ${normalized.name}。`);
+    }
+    if (account.currency === undefined || !String(account.currency).trim()) {
+      normalized.currency = baseCurrency;
+      repairs.push(`${itemName} 缺少货币代码，已设为 ${baseCurrency}。`);
+    }
+    if (account.type === undefined || !String(account.type).trim()) repairs.push(`${itemName} 缺少账户类型，已使用默认类型。`);
+    if (account.includeInNetWorth === undefined) repairs.push(`${itemName} 缺少净值统计设置，已默认计入净值。`);
+    if (account.costBasis !== undefined && account.costBasis !== "") {
+      collectImportIssue(issues, Number.isFinite(Number(account.costBasis)), `${itemName} 的持仓成本不是有效数字。`);
+    }
+    const repaired = normalizeAccount(normalized, data.settings.accountTypeGroups);
+    data.accounts.push(repaired);
+    accountsById.set(repaired.id, repaired);
+    accountsByName.set(repaired.name, repaired);
+  });
+
+  imported.snapshots.forEach((snapshot, index) => {
+    const itemName = `第 ${index + 1} 条快照`;
+    collectImportIssue(issues, isPlainObject(snapshot), `${itemName} 不是有效对象。`);
+    if (!isPlainObject(snapshot)) return;
+    collectImportIssue(issues, isValidDateString(snapshot.date), `${itemName} 日期格式不正确。`);
+    if (snapshot.balances === undefined) repairs.push(`${itemName} 缺少 balances 余额表，已设为空对象。`);
+    else collectImportIssue(issues, isPlainObject(snapshot.balances), `${itemName} 的 balances 不是有效对象。`);
+    if (snapshot.costs !== undefined) collectImportIssue(issues, isPlainObject(snapshot.costs), `${itemName} 的 costs 不是有效对象。`);
+    if (snapshot.rates !== undefined) collectImportIssue(issues, isPlainObject(snapshot.rates), `${itemName} 的 rates 不是有效对象。`);
+    if (snapshot.tags !== undefined) collectImportIssue(issues, Array.isArray(snapshot.tags) || typeof snapshot.tags === "string", `${itemName} 的标签格式不正确。`);
+    [snapshot.balances, snapshot.costs, snapshot.rates].forEach((map) => {
+      if (!isPlainObject(map)) return;
+      Object.entries(map).forEach(([key, value]) => {
+        collectImportIssue(issues, String(key || "").trim() !== "", `${itemName} 包含空账户键。`);
+        collectImportIssue(issues, Number.isFinite(Number(value)), `${itemName} 包含非数字金额或汇率。`);
+      });
+    });
+    const repaired = normalizeSnapshot({
+      ...snapshot,
+      id: snapshot.id || id(),
+      balances: importKeyMapWithAccountFallback(snapshot.balances || {}, accountsById, accountsByName),
+      costs: importKeyMapWithAccountFallback(snapshot.costs || {}, accountsById, accountsByName),
+      rates: isPlainObject(snapshot.rates) ? Object.fromEntries(Object.entries(snapshot.rates).map(([key, value]) => [String(key).trim().toUpperCase(), Number(value)])) : {},
+    });
+    if (!snapshot.id) repairs.push(`${itemName} 缺少快照 ID，已生成新 ID。`);
+    if (snapshot.costs === undefined) repairs.push(`${itemName} 缺少 costs 成本表，已设为空对象。`);
+    if (snapshot.rates === undefined) repairs.push(`${itemName} 缺少 rates 汇率表，已设为空对象。`);
+    if (snapshot.tags === undefined) repairs.push(`${itemName} 缺少标签，已设为空列表。`);
+    if (snapshot.note === undefined) repairs.push(`${itemName} 缺少备注，已设为空文本。`);
+    data.snapshots.push(repaired);
+  });
+
+  if (accountIdRemap.size) {
+    warnings.push("部分旧账户 ID 已被重建；快照中的旧 ID 或同名账户键已尽量自动对齐。");
+  }
+  if (issues.length) throw importValidationError(`JSON 中发现 ${issues.length} 个格式问题。`, summarizeImportDetails(issues));
+  return { data, warnings, repairs: summarizeImportDetails(repairs, 16) };
 }
 
 function validateJsonImportData(imported) {
@@ -3522,28 +3885,32 @@ function parseCsvImportContent(content) {
   ensureImportValid(missing.length === 0, `CSV 缺少必要表头：${missing.join("、")}。`);
   ensureImportValid(rows.length > 0, "CSV 没有可导入的数据行。");
   const get = (row, name) => row[header.indexOf(name)] || "";
+  const rowIssues = [];
   rows.forEach((row, index) => {
     const rowName = `第 ${index + 2} 行`;
     const date = get(row, "date").trim();
     const accountName = get(row, "account").trim();
     const balance = get(row, "balance").trim();
-    ensureImportValid(isValidDateString(date), `${rowName} 日期格式不正确。`);
-    ensureImportValid(accountName, `${rowName} 缺少账户名称。`);
-    ensureImportValid(balance !== "" && Number.isFinite(Number(balance)), `${rowName} 余额不是有效数字。`);
+    collectImportIssue(rowIssues, isValidDateString(date), `${rowName} 日期格式不正确。`);
+    collectImportIssue(rowIssues, accountName, `${rowName} 缺少账户名称。`);
+    collectImportIssue(rowIssues, balance !== "" && Number.isFinite(Number(balance)), `${rowName} 余额不是有效数字。`);
     if (header.includes("costbasis")) {
       const costBasis = get(row, "costbasis").trim();
-      ensureImportValid(costBasis === "" || Number.isFinite(Number(costBasis)), `${rowName} 持仓成本不是有效数字。`);
+      collectImportIssue(rowIssues, costBasis === "" || Number.isFinite(Number(costBasis)), `${rowName} 持仓成本不是有效数字。`);
     }
     if (header.includes("currency")) {
       const currency = get(row, "currency").trim();
-      ensureImportValid(currency === "" || /^[A-Za-z0-9]{2,6}$/.test(currency), `${rowName} 货币代码格式不正确。`);
+      collectImportIssue(rowIssues, currency === "" || /^[A-Za-z0-9]{2,6}$/.test(currency), `${rowName} 货币代码格式不正确。`);
     }
     ["includeinnetworth", "archived", "hidden"].forEach((name) => {
       if (!header.includes(name)) return;
       const value = get(row, name).trim().toLowerCase();
-      ensureImportValid(value === "" || value === "true" || value === "false", `${rowName} 的 ${name} 只能填写 true 或 false。`);
+      collectImportIssue(rowIssues, value === "" || value === "true" || value === "false", `${rowName} 的 ${name} 只能填写 true 或 false。`);
     });
   });
+  if (rowIssues.length) {
+    throw importValidationError(`CSV 中发现 ${rowIssues.length} 个格式问题。`, summarizeImportDetails(rowIssues));
+  }
   return { rows, header, get };
 }
 
@@ -3552,7 +3919,10 @@ function importFailureMessage(kind, error) {
     ? "请确认 CSV 表头包含 date、account、balance，且日期和金额格式正确。"
     : "请确认内容是本应用导出的完整 JSON 备份。";
   const detail = error?.isImportValidationError ? error.message : fallback;
-  return `导入失败，未写入任何数据。\n\n可能原因：${detail}`;
+  const details = error?.details?.length
+    ? `\n\n问题摘要：\n- ${error.details.map((item) => String(item)).join("\n- ")}`
+    : "";
+  return `导入失败，未写入任何数据。\n\n可能原因：${detail}${details}`;
 }
 
 function logImportFailure(context, error) {
@@ -3560,8 +3930,8 @@ function logImportFailure(context, error) {
   (expectedUserInputError ? console.info : console.error)(context, error);
 }
 
-function importJsonContent(content) {
-  const imported = JSON.parse(content);
+function importJsonContent(content, normalizedData = null) {
+  const imported = normalizedData || normalizeJsonImportData(JSON.parse(content)).data;
   validateJsonImportData(imported);
   const importedSettings = { ...defaultState.settings, ...(imported.settings || {}) };
   importedSettings.accountTypeGroups = normalizeTypeGroups(importedSettings.accountTypeGroups);
@@ -3630,32 +4000,35 @@ function backupPreviewStats(stats) {
 
 function previewJsonImport(content, sourceName = "JSON 备份") {
   const imported = JSON.parse(content);
-  validateJsonImportData(imported);
-  const snapshots = imported.snapshots.map(normalizeSnapshot);
-  const settings = { ...defaultState.settings, ...(imported.settings || {}) };
+  const normalized = normalizeJsonImportData(imported);
+  const normalizedData = normalized.data;
+  validateJsonImportData(normalizedData);
+  const snapshots = normalizedData.snapshots.map(normalizeSnapshot);
+  const settings = { ...defaultState.settings, ...(normalizedData.settings || {}) };
   const tags = normalizeSnapshotTagSettings(settings.snapshotTags, snapshots);
   const currenciesCount = new Set([
     settings.baseCurrency,
     ...(settings.enabledCurrencies || []),
     ...(settings.customCurrencies || []).map((item) => item.code),
-    ...(imported.accounts || []).map((account) => account.currency),
+    ...(normalizedData.accounts || []).map((account) => account.currency),
   ].filter(Boolean)).size;
   const hasCosts = snapshots.some((snapshot) => Object.keys(snapshot.costs || {}).length > 0) ||
-    (imported.accounts || []).some((account) => optionalNumber(account.costBasis) !== null);
+    (normalizedData.accounts || []).some((account) => optionalNumber(account.costBasis) !== null);
   const schemaVersion = imported.dataSchemaVersion || imported.version || "";
   const appVersion = imported.appVersion || "";
-  const warnings = [];
+  const warnings = [...normalized.warnings];
   if (state.accounts.length || state.snapshots.length) warnings.push("JSON 备份会全量覆盖当前浏览器中的账户、快照和设置。");
   if (!schemaVersion) warnings.push("未检测到数据结构版本，将按当前兼容逻辑导入。");
   return {
     kind: "json",
     content,
+    normalizedData,
     sourceName,
     title: "JSON 备份预检",
     subtitle: `${sourceName} · 确认后全量覆盖当前数据`,
     badge: appVersion || `schema ${schemaVersion || "?"}`,
     stats: [
-      { label: "账户", value: imported.accounts.length },
+      { label: "账户", value: normalizedData.accounts.length },
       { label: "快照", value: snapshots.length },
       { label: "货币", value: currenciesCount },
       { label: "标签", value: tags.length },
@@ -3665,6 +4038,7 @@ function previewJsonImport(content, sourceName = "JSON 备份") {
       { label: "结构版本", value: schemaVersion || "未记录" },
     ],
     warnings,
+    repairs: normalized.repairs,
   };
 }
 
@@ -3687,6 +4061,7 @@ function previewCsvImport(content, sourceName = "CSV 快照") {
   const warnings = [];
   if (duplicateKeys.size) warnings.push(`${duplicateKeys.size} 个日期/账户组合重复，后出现的行会覆盖前面的余额。`);
   if (unknownCurrencies.length) warnings.push(`发现未知货币：${unknownCurrencies.join("、")}；导入后建议检查货币设置。`);
+  if (!header.includes("costbasis")) warnings.push("CSV 未包含 costBasis 成本列，将按旧格式兼容导入；历史收益/成本分析可能缺少成本口径。");
   return {
     kind: "csv",
     content,
@@ -3703,6 +4078,7 @@ function previewCsvImport(content, sourceName = "CSV 快照") {
       { label: "成本字段", value: header.includes("costbasis") ? "包含" : "未包含" },
     ],
     warnings,
+    repairs: [],
   };
 }
 
@@ -3713,14 +4089,22 @@ function renderImportPreview(preview) {
   $("#importPreviewTitle").textContent = preview.title;
   $("#importPreviewSubtitle").textContent = preview.subtitle;
   $("#importPreviewBadge").textContent = preview.badge;
+  const warningItems = preview.warnings || [];
+  const repairItems = preview.repairs || [];
   $("#importPreviewContent").innerHTML = `
     ${backupPreviewStats(preview.stats)}
-    ${preview.warnings.length ? `
+    ${repairItems.length ? `
+      <div class="import-preview-repairs">
+        <b>兼容补齐</b>
+        <ul>${repairItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+      </div>
+    ` : ""}
+    ${warningItems.length ? `
       <div class="import-preview-warnings">
         <b>注意事项</b>
-        <ul>${preview.warnings.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
+        <ul>${warningItems.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>
       </div>
-    ` : `<p class="hint">未发现明显格式风险。</p>`}
+    ` : repairItems.length ? "" : `<p class="hint">未发现明显格式风险。</p>`}
   `;
   window.setTimeout(() => $("#confirmImportPreview").focus(), 0);
 }
@@ -3745,7 +4129,7 @@ async function confirmPendingImport() {
   });
   if (!ok) return;
   try {
-    if (preview.kind === "json") importJsonContent(preview.content);
+    if (preview.kind === "json") importJsonContent(preview.content, preview.normalizedData);
     else importCsvContent(preview.content);
     setBackupStatus(`已导入：${preview.sourceName}`);
     clearImportPreview();
@@ -3987,9 +4371,40 @@ function bindEvents() {
       renderNetWorthContribution();
     });
   });
+  $("#contributionLookbackSelect")?.addEventListener("change", (event) => {
+    contributionLookback = Number(event.currentTarget.value || 2);
+    renderNetWorthContribution();
+  });
   $("#snapshotHeatmapMode")?.addEventListener("change", (event) => {
     snapshotHeatmapMode = event.currentTarget.value || "day";
     renderSnapshotHeatmap();
+  });
+  $("#snapshotHeatmapMetric")?.addEventListener("change", (event) => {
+    snapshotHeatmapMetric = event.currentTarget.value || "count";
+    renderSnapshotHeatmap();
+  });
+  $("#snapshotHeatmapRange")?.addEventListener("change", (event) => {
+    snapshotHeatmapRange = event.currentTarget.value || "year";
+    renderSnapshotHeatmap();
+  });
+  $("#snapshotHeatmapActiveOnly")?.addEventListener("change", (event) => {
+    snapshotHeatmapActiveOnly = event.currentTarget.checked;
+    renderSnapshotHeatmap();
+  });
+  $("#snapshotHeatmap")?.addEventListener("click", (event) => {
+    const card = event.target.closest("[data-heatmap-month]");
+    if (!card || !card.dataset.heatmapMonth) return;
+    snapshotHeatmapYear = card.dataset.heatmapMonth.slice(0, 4);
+    snapshotHeatmapMonth = card.dataset.heatmapMonth.slice(5, 7);
+    snapshotHeatmapMode = "day";
+    renderSnapshotHeatmap();
+  });
+  $("#snapshotHeatmap")?.addEventListener("keydown", (event) => {
+    if (!["Enter", " "].includes(event.key)) return;
+    const card = event.target.closest("[data-heatmap-month]");
+    if (!card) return;
+    event.preventDefault();
+    card.click();
   });
   $("#snapshotHeatmapYear")?.addEventListener("change", (event) => {
     snapshotHeatmapYear = event.currentTarget.value;
@@ -4182,18 +4597,49 @@ function bindEvents() {
     showAllSnapshots = !showAllSnapshots;
     renderSnapshots();
   });
+  $("#toggleSnapshotHistoryView").addEventListener("click", () => {
+    snapshotHistoryView = snapshotHistoryView === "calendar" ? "list" : "calendar";
+    renderSnapshots();
+  });
+  $("#selectFilteredSnapshots").addEventListener("click", () => {
+    const filtered = filteredSnapshotsSorted();
+    if (selectedSnapshotIds.size) selectedSnapshotIds.clear();
+    else filtered.forEach((snapshot) => selectedSnapshotIds.add(snapshot.id));
+    renderSnapshots();
+  });
+  $("#snapshotList").addEventListener("change", (event) => {
+    const select = event.target.closest("#snapshotHistoryCalendarMonth");
+    if (!select) return;
+    snapshotHistoryCalendarMonth = select.value;
+    renderSnapshots();
+  });
+  $("#snapshotList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-history-calendar-step]");
+    if (!button) return;
+    const months = snapshotHistoryCalendarMonths(filteredSnapshotsSorted());
+    const current = snapshotHistoryCalendarMonthValue(filteredSnapshotsSorted());
+    const index = months.indexOf(current);
+    if (index < 0) return;
+    const nextIndex = button.dataset.historyCalendarStep === "prev" ? index + 1 : index - 1;
+    if (nextIndex < 0 || nextIndex >= months.length) return;
+    snapshotHistoryCalendarMonth = months[nextIndex];
+    renderSnapshots();
+  });
   $("#snapshotSearchInput").addEventListener("input", (event) => {
     snapshotSearchQuery = event.target.value;
+    snapshotHistoryCalendarMonth = "";
     selectedSnapshotIds.clear();
     renderSnapshots();
   });
   $("#snapshotDateFrom").addEventListener("change", (event) => {
     snapshotDateFrom = event.target.value;
+    snapshotHistoryCalendarMonth = "";
     selectedSnapshotIds.clear();
     renderSnapshots();
   });
   $("#snapshotDateTo").addEventListener("change", (event) => {
     snapshotDateTo = event.target.value;
+    snapshotHistoryCalendarMonth = "";
     selectedSnapshotIds.clear();
     renderSnapshots();
   });
@@ -4202,6 +4648,7 @@ function bindEvents() {
     if (!checkbox) return;
     if (checkbox.checked) selectedSnapshotTagFilters.add(checkbox.dataset.filterSnapshotTag);
     else selectedSnapshotTagFilters.delete(checkbox.dataset.filterSnapshotTag);
+    snapshotHistoryCalendarMonth = "";
     selectedSnapshotIds.clear();
     renderSnapshots();
   });
@@ -4210,6 +4657,7 @@ function bindEvents() {
     snapshotDateFrom = "";
     snapshotDateTo = "";
     selectedSnapshotTagFilters.clear();
+    snapshotHistoryCalendarMonth = "";
     selectedSnapshotIds.clear();
     renderSnapshots();
   });
@@ -4223,8 +4671,11 @@ function bindEvents() {
       .filter((snapshot) => selectedSnapshotIds.has(snapshot.id))
       .sort((a, b) => b.date.localeCompare(a.date));
     if (!selected.length) return;
-    const dates = selected.map((snapshot) => snapshot.date).join("、");
-    const ok = await confirmDialog(`确定删除选中的 ${selected.length} 条历史快照吗？\n\n${dates}\n\n删除后无法恢复。`, {
+    const selectedDates = selected.map((snapshot) => snapshot.date);
+    const dateSummary = `${selectedDates[selectedDates.length - 1]} → ${selectedDates[0]}`;
+    const previewDates = selectedDates.slice(0, 12).join("、");
+    const restText = selectedDates.length > 12 ? `\n另有 ${selectedDates.length - 12} 条未列出。` : "";
+    const ok = await confirmDialog(`确定删除选中的 ${selected.length} 条历史快照吗？\n\n范围：${dateSummary}\n${previewDates}${restText}\n\n删除后无法恢复。`, {
       title: "删除历史快照",
       confirmText: "删除",
       variant: "danger",

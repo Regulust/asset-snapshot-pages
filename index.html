@@ -7,7 +7,7 @@
     <meta name="description" content="本地资产余额快照记账 PWA" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=128" />
+    <link rel="stylesheet" href="./styles.css?v=129" />
     <title>资产快照本</title>
   </head>
   <body>
@@ -285,6 +285,8 @@
                 </div>
                 <div class="panel-actions snapshot-history-actions">
                   <button class="secondary-button small" id="toggleSnapshotLimit" type="button" hidden>查看全部</button>
+                  <button class="secondary-button small" id="toggleSnapshotHistoryView" type="button">日历视图</button>
+                  <button class="secondary-button small" id="selectFilteredSnapshots" type="button" hidden>筛选全选</button>
                   <button class="secondary-button small" id="toggleSnapshotManage" type="button">快照管理</button>
                   <button class="danger-button" id="deleteSelectedSnapshots" type="button" hidden disabled>删除</button>
                 </div>
@@ -353,6 +355,14 @@
               <button class="trend-period" data-contribution-period="quarter" type="button">季</button>
               <button class="trend-period" data-contribution-period="year" type="button">年</button>
             </div>
+            <label class="control-field contribution-lookback-field">
+              <select id="contributionLookbackSelect" class="control-select" aria-label="净值贡献比较范围">
+                <option value="2">上一点</option>
+                <option value="3">近 3 点</option>
+                <option value="5">近 5 点</option>
+                <option value="10">近 10 点</option>
+              </select>
+            </label>
           </div>
           <div id="netWorthContribution" class="contribution-analysis"></div>
         </section>
@@ -370,15 +380,44 @@
                   <option value="month">按月</option>
                 </select>
               </label>
+              <label class="control-field">
+                <select id="snapshotHeatmapMetric" class="control-select" aria-label="热力图指标">
+                  <option value="count">快照数</option>
+                  <option value="net">净值变化</option>
+                  <option value="cost">成本变化</option>
+                  <option value="gain">收益变化</option>
+                </select>
+              </label>
+              <label class="control-field heatmap-range-control">
+                <select id="snapshotHeatmapRange" class="control-select" aria-label="热力图范围">
+                  <option value="year">本年</option>
+                  <option value="12">近 12 月</option>
+                  <option value="24">近 24 月</option>
+                </select>
+              </label>
               <label class="control-field heatmap-year-control">
                 <select id="snapshotHeatmapYear" class="control-select" aria-label="热力图年份"></select>
               </label>
               <label class="control-field heatmap-month-control">
                 <select id="snapshotHeatmapMonth" class="control-select" aria-label="热力图月份"></select>
               </label>
+              <label class="toggle-field heatmap-active-toggle">
+                <input id="snapshotHeatmapActiveOnly" type="checkbox" />
+                <span>仅有快照月份</span>
+              </label>
             </div>
           </div>
           <div id="snapshotHeatmap" class="snapshot-heatmap"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-heading">
+            <div>
+              <h2>多币种暴露</h2>
+              <span id="currencyExposureSummary">按最新快照折算统计</span>
+            </div>
+          </div>
+          <div id="currencyExposure" class="currency-exposure"></div>
         </section>
 
         <section class="panel">
@@ -643,6 +682,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=128" defer></script>
+    <script src="./app.js?v=129" defer></script>
   </body>
 </html>
