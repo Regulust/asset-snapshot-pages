@@ -83,6 +83,7 @@ let snapshotDateFrom = "";
 let snapshotDateTo = "";
 let editingSnapshotId = null;
 const selectedSnapshotIds = new Set();
+const openSnapshotMonths = new Set();
 const selectedSnapshotTagFilters = new Set();
 let trendPeriod = "day";
 const visibleTrendLines = new Set(["assets", "liabilities", "net"]);
@@ -1073,7 +1074,7 @@ function renderHealthCards(total) {
   const maxGroup = groupEntries.reduce((max, entry) => Math.abs(entry[1]) > Math.abs(max?.[1] || 0) ? entry : max, null);
   const cards = [
     { key: "liability", label: "负债率", value: percentText(liabilityRate), hint: "负债 / 资产" },
-    { key: "cash", label: "现金占比", value: percentText(assets ? cashTotal / assets : 0), hint: "现金/流动大类 / 资产" },
+    { key: "cash", label: "流动占比", value: percentText(assets ? cashTotal / assets : 0), hint: "现金/流动大类 / 资产" },
     { key: "investment", label: "投资占比", value: percentText(assets ? investmentTotal / assets : 0), hint: "投资增值大类 / 资产" },
     {
       key: "account-concentration",
@@ -1114,7 +1115,7 @@ function analysisHealthCards(total) {
   const maxGroup = groupEntries.reduce((max, entry) => Math.abs(entry[1]) > Math.abs(max?.[1] || 0) ? entry : max, null);
   return [
     { key: "liability", label: "\u8d1f\u503a\u7387", value: percentText(assets ? liabilityTotal / assets : 0), hint: "\u8d1f\u503a / \u8d44\u4ea7" },
-    { key: "cash", label: "\u73b0\u91d1\u5360\u6bd4", value: percentText(assets ? cashTotal / assets : 0), hint: "\u73b0\u91d1/\u6d41\u52a8\u5927\u7c7b / \u8d44\u4ea7" },
+    { key: "cash", label: "\u6d41\u52a8\u5360\u6bd4", value: percentText(assets ? cashTotal / assets : 0), hint: "\u73b0\u91d1/\u6d41\u52a8\u5927\u7c7b / \u8d44\u4ea7" },
     { key: "investment", label: "\u6295\u8d44\u5360\u6bd4", value: percentText(assets ? investmentTotal / assets : 0), hint: "\u6295\u8d44\u589e\u503c\u5927\u7c7b / \u8d44\u4ea7" },
     {
       key: "account-concentration",
@@ -1384,7 +1385,7 @@ function healthDetailData(kind, total) {
       })),
     },
     cash: {
-      title: "现金占比明细",
+      title: "流动占比明细",
       subtitle: "现金类账户占总资产比例",
       base: assets,
       rows: assetRows
@@ -3131,6 +3132,9 @@ async function saveInlineSnapshotTag() {
 
 function renderSnapshots() {
   const list = $("#snapshotList");
+  list.querySelectorAll(".snapshot-month-group[open]").forEach((group) => {
+    if (group.dataset.snapshotMonth) openSnapshotMonths.add(group.dataset.snapshotMonth);
+  });
   const sorted = [...state.snapshots].sort((a, b) => b.date.localeCompare(a.date));
   const latest = sorted[0];
   $("#snapshotHistoryEntrySummary").textContent = state.snapshots.length
@@ -3219,6 +3223,120 @@ function renderSnapshots() {
       </details>
     `)
     .join("");
+}
+
+function renderSnapshots() {
+  const list = $("#snapshotList");
+  list.querySelectorAll(".snapshot-month-group[open]").forEach((group) => {
+    if (group.dataset.snapshotMonth) openSnapshotMonths.add(group.dataset.snapshotMonth);
+  });
+  const sorted = [...state.snapshots].sort((a, b) => b.date.localeCompare(a.date));
+  const latest = sorted[0];
+  $("#snapshotHistoryEntrySummary").textContent = state.snapshots.length
+    ? `共 ${state.snapshots.length} 条 · 最近 ${latest.date}`
+    : "暂无历史快照";
+  renderSnapshotFilters();
+  const validSnapshotIds = new Set(state.snapshots.map((snapshot) => snapshot.id));
+  const reportMode = snapshotHistoryMode === "report";
+  [...selectedSnapshotIds].forEach((snapshotId) => {
+    if (!validSnapshotIds.has(snapshotId)) selectedSnapshotIds.delete(snapshotId);
+  });
+  $("#toggleSnapshotManage").textContent = snapshotManageMode ? "完成" : "快照管理";
+  $("#toggleSnapshotManage").classList.toggle("primary-button", snapshotManageMode);
+  $("#toggleSnapshotManage").classList.toggle("secondary-button", !snapshotManageMode);
+  $("#deleteSelectedSnapshots").hidden = !snapshotManageMode;
+  $("#deleteSelectedSnapshots").disabled = selectedSnapshotIds.size === 0;
+  if (reportMode) {
+    snapshotManageMode = false;
+    $("#toggleSnapshotManage").hidden = true;
+    $("#deleteSelectedSnapshots").hidden = true;
+  } else {
+    $("#toggleSnapshotManage").hidden = false;
+  }
+  if (state.snapshots.length === 0) {
+    $("#snapshotHistoryHint").textContent = "暂无历史快照";
+    $("#toggleSnapshotLimit").hidden = true;
+    list.innerHTML = emptyHtml();
+    return;
+  }
+  const filtered = sorted.filter((snapshot) =>
+    snapshotMatchesSearch(snapshot, snapshotSearchQuery) &&
+    snapshotMatchesTagFilters(snapshot) &&
+    snapshotMatchesDateRange(snapshot)
+  );
+  const visibleSnapshots = showAllSnapshots ? filtered : filtered.slice(0, 10);
+  $("#toggleSnapshotLimit").hidden = filtered.length <= 10;
+  $("#toggleSnapshotLimit").textContent = showAllSnapshots ? "只看最近 10 条" : "查看全部";
+  $("#snapshotHistoryHint").textContent = snapshotManageMode
+    ? `已选择 ${selectedSnapshotIds.size} 条`
+    : `${showAllSnapshots ? "全部" : "最近 10 条"} · 共 ${sorted.length} 条`;
+  if (!snapshotManageMode) {
+    const filterParts = [];
+    if (compactText(snapshotSearchQuery)) filterParts.push(`搜索：${compactText(snapshotSearchQuery)}`);
+    if (snapshotDateFrom || snapshotDateTo) filterParts.push(`日期：${snapshotDateFrom || "最早"} → ${snapshotDateTo || "最新"}`);
+    if (selectedSnapshotTagFilters.size) filterParts.push(`标签：${[...selectedSnapshotTagFilters].join("、")}`);
+    $("#snapshotHistoryHint").textContent = `${filterParts.length ? `${filterParts.join(" · ")} · ` : ""}${showAllSnapshots ? "全部" : "最近 10 条"} · 共 ${filtered.length} 条`;
+  }
+  if (filtered.length === 0) {
+    $("#toggleSnapshotLimit").hidden = true;
+    list.innerHTML = emptyHtml();
+    return;
+  }
+  const groups = visibleSnapshots.reduce((result, snapshot) => {
+    const month = snapshot.date.slice(0, 7);
+    (result[month] ||= []).push(snapshot);
+    return result;
+  }, {});
+  list.innerHTML = Object.entries(groups)
+    .map(([month, snapshots], index) => {
+      const monthIds = snapshots.map((snapshot) => snapshot.id);
+      const monthSelectedCount = monthIds.filter((id) => selectedSnapshotIds.has(id)).length;
+      const monthChecked = monthSelectedCount > 0 && monthSelectedCount === monthIds.length;
+      const monthPartial = monthSelectedCount > 0 && monthSelectedCount < monthIds.length;
+      const isOpen = openSnapshotMonths.has(month) || (!openSnapshotMonths.size && index === 0);
+      return `
+      <details class="snapshot-month-group" data-snapshot-month="${month}" ${isOpen ? "open" : ""}>
+        <summary>
+          <div class="snapshot-month-summary-main">
+            ${snapshotManageMode ? `<label class="snapshot-month-select" data-month-checkbox-wrapper>
+              <input data-select-snapshot-month="${month}" type="checkbox" ${monthChecked ? "checked" : ""} ${monthPartial ? 'data-indeterminate="true"' : ""} />
+              <span class="sr-only">选择 ${month} 整个月的快照</span>
+            </label>` : ""}
+            <b>${month}</b>
+          </div>
+          <span>${snapshots.length} 条</span>
+        </summary>
+        <div class="snapshot-month-list">
+          ${snapshots
+            .map((snapshot) => {
+              const total = snapshotTotal(snapshot);
+              const count = Object.values(snapshot.balances).filter((value) => Number(value) !== 0).length;
+              const checked = selectedSnapshotIds.has(snapshot.id) ? "checked" : "";
+              const note = compactText(snapshot.note);
+              const notePreview = compactPreview(note);
+              const rowTag = snapshotManageMode ? "div" : "button";
+              return `
+                <${rowTag} class="table-row snapshot-row" data-edit-snapshot="${snapshot.id}" ${snapshotManageMode ? "" : 'type="button"'}>
+                  ${snapshotManageMode ? `<label class="snapshot-select"><input data-select-snapshot="${snapshot.id}" type="checkbox" ${checked} /><span class="sr-only">选择 ${snapshot.date}</span></label>` : ""}
+                  <div>
+                    <div class="snapshot-date-line"><b>${snapshot.date}</b>${snapshotTagsHtml(snapshot)}</div>
+                    <span class="meta">${count} 个账户有余额${note ? ` · <span class="snapshot-note-preview" title="${escapeHtml(note)}">${escapeHtml(notePreview)}</span>` : ""}</span>
+                  </div>
+                  <div class="snapshot-total">
+                    <b>${moneySpan(formatMoney(total.net))}</b>
+                  </div>
+                </${rowTag}>
+              `;
+            })
+            .join("")}
+        </div>
+      </details>
+    `;
+    })
+    .join("");
+  list.querySelectorAll('[data-indeterminate="true"]').forEach((input) => {
+    input.indeterminate = true;
+  });
 }
 
 function renderSnapshotFilters() {
@@ -4571,6 +4689,19 @@ function bindEvents() {
     else selectedSnapshotIds.delete(checkbox.dataset.selectSnapshot);
     renderSnapshots();
   });
+  $("#snapshotList").addEventListener("change", (event) => {
+    const monthCheckbox = event.target.closest("[data-select-snapshot-month]");
+    if (!monthCheckbox) return;
+    const month = monthCheckbox.dataset.selectSnapshotMonth;
+    const monthSnapshots = state.snapshots.filter((snapshot) => snapshot.date.startsWith(`${month}-`));
+    if (monthCheckbox.checked) monthSnapshots.forEach((snapshot) => selectedSnapshotIds.add(snapshot.id));
+    else monthSnapshots.forEach((snapshot) => selectedSnapshotIds.delete(snapshot.id));
+    renderSnapshots();
+  });
+  $("#snapshotList").addEventListener("click", (event) => {
+    if (!event.target.closest("[data-month-checkbox-wrapper]")) return;
+    event.stopPropagation();
+  }, true);
   $("#snapshotList").addEventListener("click", async (event) => {
     if (snapshotManageMode) return;
     const row = event.target.closest("[data-edit-snapshot]");
@@ -4592,6 +4723,12 @@ function bindEvents() {
     closeSnapshotHistorySheet();
     openSnapshotSheet(row.dataset.editSnapshot);
   });
+  $("#snapshotList").addEventListener("toggle", (event) => {
+    const group = event.target.closest(".snapshot-month-group");
+    if (!group?.dataset.snapshotMonth) return;
+    if (group.open) openSnapshotMonths.add(group.dataset.snapshotMonth);
+    else openSnapshotMonths.delete(group.dataset.snapshotMonth);
+  }, true);
   $("#toggleTypeManage").addEventListener("click", () => {
     typeManageMode = !typeManageMode;
     selectedTypeGroupIds.clear();

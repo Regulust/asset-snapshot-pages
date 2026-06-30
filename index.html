@@ -156,7 +156,7 @@
             </label>
             <label class="account-note-field">
               账户备注
-              <textarea name="note" rows="3" placeholder="选填，例如用途、开户信息或备注"></textarea>
+              <textarea class="note-textarea" name="note" rows="1" placeholder="选填，例如用途、开户信息或备注"></textarea>
             </label>
             <div class="check-row-group">
               <label class="check-row">
@@ -213,7 +213,7 @@
                 </div>
                 <label>
                   备注
-                  <textarea id="snapshotNote" name="note" rows="2" placeholder="建议备注简短"></textarea>
+                  <textarea id="snapshotNote" class="note-textarea" name="note" rows="1" placeholder="建议备注简短"></textarea>
                 </label>
               </div>
               <div class="snapshot-rate-editor">
@@ -433,7 +433,7 @@
         </section>
 
         <div class="sheet-backdrop" id="historicalReportSheet" hidden>
-          <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="historicalReportTitle">
+          <section class="account-sheet historical-report-sheet" role="dialog" aria-modal="true" aria-labelledby="historicalReportTitle">
             <div class="sheet-heading">
               <div>
                 <h2 id="historicalReportTitle">历史分析报告</h2>
