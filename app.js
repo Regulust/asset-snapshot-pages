@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v132";
+const APP_VERSION = "v133";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -138,9 +138,11 @@ let snapshotHeatmapMetric = "count";
 let snapshotHeatmapActiveOnly = false;
 let snapshotHeatmapRange = "year";
 let analysisTrendPeriod = "month";
+let analysisHealthTrendPeriod = "month";
 let analysisTrendMode = "total";
 let analysisTrendMetric = "balance";
 const selectedAnalysisTrendAccountIds = new Set();
+const selectedAnalysisTrendTypeNames = new Set();
 let gainAnalysisFilterMode = "all";
 let gainAnalysisFilterValue = "";
 let pendingImportPreview = null;
@@ -774,7 +776,9 @@ function snapshotCostForAccount(snapshot, account, fallbackToAccount = true) {
   if (snapshot?.costs && Object.hasOwn(snapshot.costs, account.id)) {
     return optionalNumber(snapshot.costs[account.id]);
   }
-  return fallbackToAccount ? optionalNumber(account.costBasis) : null;
+  const accountCost = fallbackToAccount ? optionalNumber(account.costBasis) : null;
+  if (accountCost !== null) return accountCost;
+  return optionalNumber(snapshot?.balances?.[account.id]);
 }
 
 function snapshotTotal(snapshot) {
@@ -930,6 +934,7 @@ function renderAnalysis() {
   renderNetWorthContribution();
   renderSnapshotHeatmap();
   renderAnalysisTrend();
+  renderAnalysisHealthTrend();
   renderCurrencyExposure(total);
 }
 
@@ -1002,7 +1007,7 @@ function renderHealthCards(total) {
   $("#healthCards").innerHTML = healthCardsHtml(total);
 }
 
-function analysisHealthCards(total) {
+function healthMetricValues(total) {
   const assets = Math.max(total.assets || 0, 0);
   const liabilityRows = healthScopedRows(total, "liability")
     .filter((row) => row.account.includeInNetWorth !== false && row.converted < 0);
@@ -1022,21 +1027,35 @@ function analysisHealthCards(total) {
   const maxAccount = concentrationRows.reduce((max, row) => row.converted > (max?.converted || 0) ? row : max, null);
   const groupEntries = healthScopedGroupEntries(groupConcentrationRows);
   const maxGroup = groupEntries.reduce((max, entry) => Math.abs(entry[1]) > Math.abs(max?.[1] || 0) ? entry : max, null);
+  return {
+    assets,
+    liabilityRatio: assets ? liabilityTotal / assets : 0,
+    cashRatio: assets ? cashTotal / assets : 0,
+    investmentRatio: assets ? investmentTotal / assets : 0,
+    accountConcentrationRatio: assets && maxAccount ? maxAccount.converted / assets : 0,
+    groupConcentrationRatio: assets && maxGroup ? maxGroup[1] / assets : 0,
+    maxAccount,
+    maxGroup,
+  };
+}
+
+function analysisHealthCards(total) {
+  const metrics = healthMetricValues(total);
   return [
-    { key: "liability", label: "\u8d1f\u503a\u7387", value: percentText(assets ? liabilityTotal / assets : 0), hint: "\u8d1f\u503a / \u8d44\u4ea7" },
-    { key: "cash", label: "\u6d41\u52a8\u5360\u6bd4", value: percentText(assets ? cashTotal / assets : 0), hint: "\u73b0\u91d1/\u6d41\u52a8\u5927\u7c7b / \u8d44\u4ea7" },
-    { key: "investment", label: "\u6295\u8d44\u5360\u6bd4", value: percentText(assets ? investmentTotal / assets : 0), hint: "\u6295\u8d44\u589e\u503c\u5927\u7c7b / \u8d44\u4ea7" },
+    { key: "liability", label: "\u8d1f\u503a\u7387", value: percentText(metrics.liabilityRatio), hint: "\u8d1f\u503a / \u8d44\u4ea7" },
+    { key: "cash", label: "\u6d41\u52a8\u5360\u6bd4", value: percentText(metrics.cashRatio), hint: "\u73b0\u91d1/\u6d41\u52a8\u5927\u7c7b / \u8d44\u4ea7" },
+    { key: "investment", label: "\u6295\u8d44\u5360\u6bd4", value: percentText(metrics.investmentRatio), hint: "\u6295\u8d44\u589e\u503c\u5927\u7c7b / \u8d44\u4ea7" },
     {
       key: "account-concentration",
       label: "\u6700\u5927\u8d26\u6237\u96c6\u4e2d\u5ea6",
-      value: percentText(assets && maxAccount ? maxAccount.converted / assets : 0),
-      hint: maxAccount ? maxAccount.account.name : "\u6682\u65e0\u8d44\u4ea7\u8d26\u6237",
+      value: percentText(metrics.accountConcentrationRatio),
+      hint: metrics.maxAccount ? metrics.maxAccount.account.name : "\u6682\u65e0\u8d44\u4ea7\u8d26\u6237",
     },
     {
       key: "group-concentration",
       label: "\u6700\u5927\u5206\u7ec4\u5360\u6bd4",
-      value: percentText(assets && maxGroup ? maxGroup[1] / assets : 0),
-      hint: maxGroup ? maxGroup[0] : "\u6682\u65e0\u8d44\u4ea7\u5206\u7ec4",
+      value: percentText(metrics.groupConcentrationRatio),
+      hint: metrics.maxGroup ? metrics.maxGroup[0] : "\u6682\u65e0\u8d44\u4ea7\u5206\u7ec4",
     },
   ];
 }
@@ -1184,17 +1203,17 @@ function gainAnalysisHtml(total, options = {}) {
   const { interactive = true } = options;
   const summary = gainAnalysisSummary(total, { filtered: interactive });
   if (!summary.allRows.length) {
-    return `<div class="empty-state">暂无带成本的资产账户，录入快照成本后可查看收益分析。</div>`;
+    return `<div class="empty-state">暂无可计算收益的资产账户，录入资产余额后可查看收益分析。</div>`;
   }
   const filterHtml = gainAnalysisFilterHtml(summary, { interactive });
   if (!summary.rows.length) {
     return `
       ${filterHtml}
-      <div class="empty-state">当前筛选下暂无带成本的资产账户。</div>
+      <div class="empty-state">当前筛选下暂无可计算收益的资产账户。</div>
     `;
   }
   const cards = [
-    { label: "总成本", value: moneySpan(formatMoney(summary.totalCost)), hint: `${summary.rows.length} 个账户有成本` },
+    { label: "总成本", value: moneySpan(formatMoney(summary.totalCost)), hint: `${summary.rows.length} 个账户计入成本` },
     {
       label: "总收益",
       value: signedMoneyHtml(summary.totalGain),
@@ -1632,7 +1651,82 @@ function historicalReportBodyHtml(snapshot, { selectedGroupId = null, exportMode
   `;
 }
 
-function historicalReportHtml(snapshot) {
+function historicalReportExportCss() {
+  return `
+    :root { color-scheme: light; --ink:#101828; --muted:#667085; --line:#d8dee9; --blue:#2563eb; }
+    * { box-sizing: border-box; }
+    body.report-export { margin: 0; padding: 28px; background: #f4f7fb; color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; }
+    body.report-export main { display: grid; gap: 18px; max-width: 980px; margin: 0 auto; padding: 0; }
+    body.report-export header,
+    body.report-export .report-section,
+    body.report-export .report-summary-grid article {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, .06);
+    }
+    body.report-export header { padding: 18px 20px; }
+    body.report-export h1,
+    body.report-export h2,
+    body.report-export h3,
+    body.report-export p { margin: 0; }
+    body.report-export h1 { font-size: 26px; line-height: 1.15; }
+    body.report-export .report-summary-grid,
+    body.report-export .health-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    body.report-export .report-summary-grid article {
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+    }
+    body.report-export .report-summary-grid b { text-align: right; }
+    body.report-export .health-card span,
+    body.report-export .health-card small {
+      white-space: normal;
+    }
+    body.report-export .treemap-toolbar button,
+    body.report-export #exportTreemapBack,
+    body.report-export .treemap-tooltip {
+      display: none !important;
+    }
+    body.report-export .gain-column-heading .gain-column-summary {
+      font-size: var(--text-support, 12px);
+      font-weight: 600;
+    }
+    body.report-export .gain-column-summary b,
+    body.report-export .gain-column-summary .money {
+      font-size: inherit;
+      font-weight: inherit;
+    }
+    @media (max-width: 980px) {
+      body.report-export .report-summary-grid,
+      body.report-export .health-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    @media (max-width: 720px) {
+      body.report-export { padding: 14px; }
+      body.report-export .report-summary-grid,
+      body.report-export .health-grid,
+      body.report-export .gain-summary-grid,
+      body.report-export .gain-columns {
+        grid-template-columns: 1fr;
+      }
+      body.report-export .report-section-heading { display: grid; }
+    }
+  `;
+}
+
+async function currentStylesheetText() {
+  const href = document.querySelector('link[rel="stylesheet"]')?.href || "./styles.css";
+  try {
+    const response = await fetch(href, { cache: "no-store" });
+    if (response.ok) return await response.text();
+  } catch (error) {
+    console.warn("Failed to embed current stylesheet for report export", error);
+  }
+  return "";
+}
+
+function historicalReportHtml(snapshot, stylesheetText = "") {
   const title = `\u8d44\u4ea7\u5386\u53f2\u5206\u6790\u62a5\u544a - ${snapshot.date}`;
   return `<!doctype html>
 <html lang="zh-CN">
@@ -1641,70 +1735,11 @@ function historicalReportHtml(snapshot) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>${escapeHtml(title)}</title>
   <style>
-    :root { color-scheme: light; --ink:#101828; --muted:#667085; --line:#d8dee9; --blue:#2563eb; }
-    * { box-sizing: border-box; }
-    body { margin: 0; padding: 28px; background: #f4f7fb; color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    main { max-width: 980px; margin: 0 auto; display: grid; gap: 18px; }
-    header, .report-section, .report-summary-grid article { border: 1px solid var(--line); border-radius: 8px; background: #fff; box-shadow: 0 12px 28px rgba(15,23,42,.06); }
-    header { padding: 18px 20px; }
-    h1, h2, h3, p { margin: 0; }
-    h1 { font-size: 26px; }
-    header p, .report-section-heading span, .health-card small, .treemap-toolbar span, .report-summary-grid span, .gain-summary-card span, .gain-summary-card small, .gain-column-heading span, .gain-row-heading span { color: var(--muted); }
-    .report-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-    .report-summary-grid article { display: grid; gap: 6px; padding: 13px; }
-    .report-summary-grid b { font-size: 20px; }
-    .report-section { display: grid; gap: 12px; padding: 16px; }
-    .report-section-heading { display: flex; justify-content: space-between; gap: 12px; align-items: end; }
-    .health-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
-    .health-card { display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "label value" "hint value"; align-items: center; min-height: 58px; gap: 1px 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcff; }
-    .health-card span { grid-area: label; font-weight: 800; }
-    .health-card b { grid-area: value; align-self: center; justify-self: end; font-size: 21px; line-height: 1; }
-    .health-card small { grid-area: hint; }
-    .health-card span, .health-card small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
-    .gain-analysis { display: grid; gap: 10px; }
-    .gain-summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-    .gain-summary-card { display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-areas: "label value" "hint value"; align-items: center; gap: 2px 12px; min-width: 0; min-height: 58px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcff; }
-    .gain-summary-card span, .gain-summary-card small, .gain-row-heading b, .gain-row-meta span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .gain-summary-card span { grid-area: label; font-weight: 800; color: var(--ink); }
-    .gain-summary-card small { grid-area: hint; font-weight: 500; }
-    .gain-summary-card small .money { color: inherit; font-weight: inherit; }
-    .gain-summary-card b { grid-area: value; align-self: center; overflow: hidden; font-size: 16px; font-weight: 700; line-height: 1; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
-    .gain-summary-card b .money { font: inherit; color: inherit; }
-    .gain-summary-card.positive b, .gain-row.is-positive .gain-row-heading b:last-child { color: #059669; }
-    .gain-summary-card.negative b, .gain-row.is-negative .gain-row-heading b:last-child { color: #dc2626; }
-    .gain-columns { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-    .gain-column { display: grid; align-content: start; gap: 4px; min-width: 0; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfcff; }
-    .gain-column-heading, .gain-row-heading { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
-    .gain-column-heading { align-items: baseline; }
-    .gain-column-heading b { font-size: 14px; }
-    .gain-column-heading .gain-column-summary { display: inline-flex; align-items: center; justify-content: flex-end; gap: .22em; overflow: hidden; font-weight: 600; line-height: 1; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
-    .gain-column-summary b { color: inherit; line-height: 1; font-weight: 900; }
-    .gain-column-summary .money { color: inherit; font-weight: inherit; }
-    .gain-column-summary.positive { color: #059669; }
-    .gain-column-summary.negative { color: #dc2626; }
-    .gain-row { display: grid; gap: 5px; padding: 7px 0; border-top: 1px solid #edf0f5; }
-    .gain-row-heading b { font-size: 13px; }
-    .gain-row-heading b:last-child { text-align: right; }
-    .gain-row-meta { display: grid; grid-template-columns: minmax(0,1fr) minmax(90px,28%); align-items: center; gap: 10px; }
-    .gain-row-meta span:first-child { font-size: 11px; }
-    .gain-track { height: 7px; overflow: hidden; border-radius: 999px; background: #e9eef7; }
-    .gain-track i { display: block; height: 100%; border-radius: inherit; background: #059669; }
-    .gain-row.is-negative .gain-track i { background: #dc2626; }
-    .asset-treemap { display: grid; gap: 10px; border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: #f8fafc; }
-    .treemap-toolbar { display: flex; justify-content: space-between; gap: 10px; min-height: 34px; }
-    .treemap-toolbar button { display: none; }
-    .treemap-canvas { position: relative; min-height: 320px; overflow: hidden; border-radius: 8px; background: #e5eaf2; }
-    .treemap-tile { position: absolute; display: grid; align-content: start; gap: 2px; overflow: hidden; border: 2px solid #f8fafc; border-radius: 7px; padding: 10px 11px; color: #fff; text-align: left; }
-    .treemap-tile b, .treemap-tile span, .treemap-tile small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .treemap-tile b { font-size: 14px; }
-    .treemap-tile span, .treemap-tile small { color: rgba(255,255,255,.84); font-size: 11px; }
-    .treemap-tile.is-compact span, .treemap-tile.is-tiny span, .treemap-tile.is-tiny small { display: none; }
-    .treemap-tile.is-tiny b { font-size: 11px; }
-    .treemap-tooltip { display: none; }
-    @media (max-width: 720px) { body { padding: 14px; } .report-summary-grid, .health-grid, .gain-summary-grid, .gain-columns { grid-template-columns: 1fr; } .report-section-heading { display: grid; } }
+    ${stylesheetText}
+    ${historicalReportExportCss()}
   </style>
 </head>
-<body>
+<body class="report-export">
   <main>
     <header>
       <h1>${escapeHtml(title)}</h1>
@@ -1716,11 +1751,23 @@ function historicalReportHtml(snapshot) {
 </html>`;
 }
 
-function exportHistoricalReport() {
+async function exportHistoricalReport() {
   const snapshot = selectedReportSnapshot();
   if (!snapshot) return;
-  const ok = download(`asset-history-report-${snapshot.date}.html`, historicalReportHtml(snapshot), "text/html;charset=utf-8");
-  $("#historicalReportSubtitle").textContent = ok ? `${snapshot.date} \u00b7 HTML \u62a5\u544a\u5df2\u5bfc\u51fa` : `${snapshot.date} \u00b7 \u5bfc\u51fa\u5931\u8d25`;
+  const filename = `asset-history-report-${snapshot.date}.html`;
+  const stylesheetText = await currentStylesheetText();
+  const result = await saveTextFile({
+    filename,
+    content: historicalReportHtml(snapshot, stylesheetText),
+    type: "text/html;charset=utf-8",
+    description: "HTML \u5386\u53f2\u5206\u6790\u62a5\u544a",
+    accept: { "text/html": [".html"] },
+  });
+  $("#historicalReportSubtitle").textContent = result.cancelled
+    ? `${snapshot.date} \u00b7 HTML \u62a5\u544a\u5df2\u53d6\u6d88\u5bfc\u51fa`
+    : result.ok
+      ? `${snapshot.date} \u00b7 HTML \u62a5\u544a\u5df2\u5bfc\u51fa`
+      : `${snapshot.date} \u00b7 \u5bfc\u51fa\u5931\u8d25`;
 }
 
 function assetTreemapHtml(total, {
@@ -2556,11 +2603,11 @@ function heatmapLegendHtml(label) {
 
 function analysisTrendMetricConfig(metric = analysisTrendMetric) {
   return {
-    balance: { label: "余额", totalKey: "totalBalance", groupKey: "groupBalances", accountKey: "accountBalances", color: "#2563eb", empty: "暂无余额趋势数据", valueType: "money" },
-    cost: { label: "成本", totalKey: "totalCost", groupKey: "groupCosts", accountKey: "accountCosts", color: "#b45309", empty: "暂无成本趋势数据", valueType: "money" },
-    gain: { label: "收益", totalKey: "totalGain", groupKey: "groupGains", accountKey: "accountGains", color: "#059669", empty: "暂无收益趋势数据", valueType: "signedMoney" },
-    gainRate: { label: "收益率", totalKey: "totalGainRate", groupKey: "groupGainRates", accountKey: "accountGainRates", color: "#7c3aed", empty: "暂无收益率趋势数据", valueType: "percent" },
-  }[metric] || { label: "余额", totalKey: "totalBalance", groupKey: "groupBalances", accountKey: "accountBalances", color: "#2563eb", empty: "暂无余额趋势数据" };
+    balance: { label: "余额", totalKey: "totalBalance", groupKey: "groupBalances", typeKey: "typeBalances", accountKey: "accountBalances", color: "#2563eb", empty: "暂无余额趋势数据", valueType: "money" },
+    cost: { label: "成本", totalKey: "totalCost", groupKey: "groupCosts", typeKey: "typeCosts", accountKey: "accountCosts", color: "#b45309", empty: "暂无成本趋势数据", valueType: "money" },
+    gain: { label: "收益", totalKey: "totalGain", groupKey: "groupGains", typeKey: "typeGains", accountKey: "accountGains", color: "#059669", empty: "暂无收益趋势数据", valueType: "signedMoney" },
+    gainRate: { label: "收益率", totalKey: "totalGainRate", groupKey: "groupGainRates", typeKey: "typeGainRates", accountKey: "accountGainRates", color: "#7c3aed", empty: "暂无收益率趋势数据", valueType: "percent" },
+  }[metric] || { label: "余额", totalKey: "totalBalance", groupKey: "groupBalances", typeKey: "typeBalances", accountKey: "accountBalances", color: "#2563eb", empty: "暂无余额趋势数据" };
 }
 
 function analysisTrendValueHtml(value, metric = analysisTrendMetric) {
@@ -2593,15 +2640,23 @@ function analysisTrendData() {
       const groupCosts = {};
       const groupGains = {};
       const groupGainRates = {};
+      const typeBalances = {};
+      const typeCosts = {};
+      const typeGains = {};
+      const typeGainRates = {};
       const accountBalances = {};
       const accountCosts = {};
       const accountGains = {};
       const accountGainRates = {};
       summary.rows.forEach((row) => {
         const group = accountGroupName(row.account);
+        const type = typeGroupLabelForType(row.account.type);
         groupBalances[group] = (groupBalances[group] || 0) + (row.converted || 0);
         groupCosts[group] = (groupCosts[group] || 0) + (row.costConverted || 0);
         groupGains[group] = (groupGains[group] || 0) + (row.gainConverted || 0);
+        typeBalances[type] = (typeBalances[type] || 0) + (row.converted || 0);
+        typeCosts[type] = (typeCosts[type] || 0) + (row.costConverted || 0);
+        typeGains[type] = (typeGains[type] || 0) + (row.gainConverted || 0);
         accountBalances[row.account.id] = row.converted || 0;
         accountCosts[row.account.id] = row.costConverted || 0;
         accountGains[row.account.id] = row.gainConverted || 0;
@@ -2609,6 +2664,9 @@ function analysisTrendData() {
       });
       Object.keys(groupGains).forEach((group) => {
         groupGainRates[group] = groupCosts[group] ? groupGains[group] / Math.abs(groupCosts[group]) : 0;
+      });
+      Object.keys(typeGains).forEach((type) => {
+        typeGainRates[type] = typeCosts[type] ? typeGains[type] / Math.abs(typeCosts[type]) : 0;
       });
       return {
         ...point,
@@ -2620,6 +2678,10 @@ function analysisTrendData() {
         groupCosts,
         groupGains,
         groupGainRates,
+        typeBalances,
+        typeCosts,
+        typeGains,
+        typeGainRates,
         accountBalances,
         accountCosts,
         accountGains,
@@ -2648,7 +2710,13 @@ function renderAnalysisTrend() {
   const previous = points[points.length - 2];
   const totalValue = last[metric.totalKey] || 0;
   const change = previous ? totalValue - (previous[metric.totalKey] || 0) : 0;
-  const modeText = analysisTrendMode === "account" ? `按账户${metric.label}` : analysisTrendMode === "group" ? `按分组${metric.label}` : `汇总${metric.label}`;
+  const modeText = analysisTrendMode === "account"
+    ? `按账户${metric.label}`
+    : analysisTrendMode === "type"
+      ? `按分类${metric.label}`
+      : analysisTrendMode === "group"
+        ? `按分组${metric.label}`
+        : `汇总${metric.label}`;
   summary.innerHTML = `
     <span>${escapeHtml(modeText)} · 最新${escapeHtml(metric.label)} ${analysisTrendValueHtml(totalValue)}${analysisTrendMetric === "gain" ? ` · ${percentText(last.totalGainRate)}` : ""}</span>
     ${previous ? `<span>较上一点 ${analysisTrendChangeHtml(change)}</span>` : ""}
@@ -2667,9 +2735,18 @@ function renderAnalysisTrendControls() {
     button.classList.toggle("active", button.dataset.analysisTrendPeriod === analysisTrendPeriod);
   });
   const picker = $("#analysisTrendAccountPicker");
-  if (picker) picker.hidden = analysisTrendMode !== "account";
+  const selectableMode = analysisTrendSelectableMode();
+  if (picker) picker.hidden = !selectableMode;
   const toggle = $("#toggleAnalysisTrendAccountPicker");
   if (toggle) toggle.setAttribute("aria-expanded", String(!$("#analysisTrendAccountPopover")?.hidden));
+}
+
+function analysisTrendSelectableMode() {
+  return analysisTrendMode === "account" || analysisTrendMode === "type" ? analysisTrendMode : "";
+}
+
+function selectedAnalysisTrendOptionIds() {
+  return analysisTrendMode === "type" ? selectedAnalysisTrendTypeNames : selectedAnalysisTrendAccountIds;
 }
 
 function renderAnalysisTrendAccountPicker(points = analysisTrendData()) {
@@ -2677,20 +2754,31 @@ function renderAnalysisTrendAccountPicker(points = analysisTrendData()) {
   const popover = $("#analysisTrendAccountPopover");
   const toggle = $("#toggleAnalysisTrendAccountPicker");
   if (!picker || !popover || !toggle) return;
-  const accounts = analysisTrendAccountOptions(points);
-  const validIds = new Set(accounts.map((item) => item.id));
-  [...selectedAnalysisTrendAccountIds].forEach((id) => {
-    if (!validIds.has(id)) selectedAnalysisTrendAccountIds.delete(id);
+  const selectableMode = analysisTrendSelectableMode();
+  const options = analysisTrendSelectableOptions(points);
+  const selectedIds = selectedAnalysisTrendOptionIds();
+  const validIds = new Set(options.map((item) => item.id));
+  [...selectedIds].forEach((id) => {
+    if (!validIds.has(id)) selectedIds.delete(id);
   });
-  if (selectedAnalysisTrendAccountIds.size === 0) {
-    accounts.slice(0, 4).forEach((account) => selectedAnalysisTrendAccountIds.add(account.id));
+  if (selectedIds.size === 0) {
+    options.forEach((option) => selectedIds.add(option.id));
   }
-  toggle.textContent = selectedAnalysisTrendAccountIds.size ? `选择账户 (${selectedAnalysisTrendAccountIds.size})` : "选择账户";
-  picker.hidden = analysisTrendMode !== "account";
-  if (analysisTrendMode !== "account") popover.hidden = true;
-  popover.innerHTML = accounts.length
-    ? `<div class="trend-account-popover-heading">最多同时查看 6 个账户</div>${analysisTrendAccountGroupsHtml(accounts)}`
-    : `<div class="empty-state">暂无可查看趋势的账户</div>`;
+  const label = selectableMode === "type" ? "分类" : "账户";
+  toggle.textContent = selectedIds.size ? `选择${label} (${selectedIds.size}/${options.length})` : `选择${label}`;
+  picker.hidden = !selectableMode;
+  if (!selectableMode) popover.hidden = true;
+  popover.innerHTML = options.length
+    ? `<div class="trend-account-popover-heading">
+        <span>已选 ${selectedIds.size} / ${options.length} 个${label}</span>
+        <button class="secondary-button small" data-analysis-trend-select-all type="button">全选</button>
+        <button class="secondary-button small" data-analysis-trend-select-top type="button">前 4 个</button>
+      </div>${analysisTrendOptionsGroupsHtml(options)}`
+    : `<div class="empty-state">暂无可查看趋势的${label}</div>`;
+}
+
+function analysisTrendSelectableOptions(points) {
+  return analysisTrendMode === "type" ? analysisTrendTypeOptions(points) : analysisTrendAccountOptions(points);
 }
 
 function analysisTrendAccountOptions(points) {
@@ -2706,20 +2794,35 @@ function analysisTrendAccountOptions(points) {
     .sort((a, b) => Math.abs(b.latestValue) - Math.abs(a.latestValue));
 }
 
-function analysisTrendAccountGroupsHtml(accounts) {
+function analysisTrendTypeOptions(points) {
+  const metric = analysisTrendMetricConfig();
+  const latestValues = points[points.length - 1]?.[metric.typeKey] || {};
+  const typeNames = new Set(points.flatMap((point) => Object.keys(point[metric.typeKey] || {})));
+  return [...typeNames]
+    .map((typeName) => ({
+      id: typeName,
+      name: typeName,
+      latestValue: latestValues[typeName] || 0,
+      groupName: "账户分类",
+      subLabel: "账户类型大类",
+    }))
+    .sort((a, b) => Math.abs(b.latestValue) - Math.abs(a.latestValue));
+}
+
+function analysisTrendOptionsGroupsHtml(options) {
   const groups = {};
-  accounts.forEach((account) => {
-    (groups[account.groupName] ||= []).push(account);
+  options.forEach((option) => {
+    (groups[option.groupName] ||= []).push(option);
   });
-  return Object.entries(groups).map(([group, groupAccounts]) => `
+  return Object.entries(groups).map(([group, groupOptions]) => `
     <section class="trend-account-group">
       <div class="trend-account-group-title">${escapeHtml(group)}</div>
-      ${groupAccounts.map((account) => `
+      ${groupOptions.map((option) => `
         <label class="trend-account-option">
-          <input data-analysis-trend-account="${escapeHtml(account.id)}" type="checkbox" ${selectedAnalysisTrendAccountIds.has(account.id) ? "checked" : ""} />
-          <b>${escapeHtml(account.name)}</b>
-          <small>${escapeHtml(typeLabel(account.type))} · ${escapeHtml(account.currency)}</small>
-          <strong>${analysisTrendValueHtml(account.latestValue)}</strong>
+          <input data-analysis-trend-option="${escapeHtml(option.id)}" type="checkbox" ${selectedAnalysisTrendOptionIds().has(option.id) ? "checked" : ""} />
+          <b>${escapeHtml(option.name)}</b>
+          <small>${escapeHtml(option.subLabel || `${typeLabel(option.type)} · ${option.currency}`)}</small>
+          <strong>${analysisTrendValueHtml(option.latestValue)}</strong>
         </label>
       `).join("")}
     </section>
@@ -2862,7 +2965,7 @@ function hideLineChartTooltip(svg, chartId) {
 }
 
 function analysisTrendChartModel(points, mode, metric = analysisTrendMetricConfig()) {
-  const palette = ["#059669", "#2563eb", "#b45309", "#7c3aed", "#dc2626", "#0891b2"];
+  const palette = ["#059669", "#2563eb", "#b45309", "#7c3aed", "#dc2626", "#0891b2", "#c026d3", "#0f766e", "#ea580c", "#4f46e5", "#16a34a", "#be123c"];
   let chartPoints = points.map((point) => ({ ...point }));
   let series = [{ key: metric.totalKey, label: `总${metric.label}`, color: metric.color }];
   if (mode === "group") {
@@ -2881,8 +2984,20 @@ function analysisTrendChartModel(points, mode, metric = analysisTrendMetricConfi
       ...Object.fromEntries(groups.map((group, index) => [`group_${index}`, point[metric.groupKey]?.[group] || 0])),
     }));
   }
+  if (mode === "type") {
+    const types = analysisTrendTypeOptions(points).filter((type) => selectedAnalysisTrendTypeNames.has(type.id));
+    series = types.map((type, index) => ({
+      key: `type_${index}`,
+      label: type.name,
+      color: palette[index % palette.length],
+    }));
+    chartPoints = points.map((point) => ({
+      ...point,
+      ...Object.fromEntries(types.map((type, index) => [`type_${index}`, point[metric.typeKey]?.[type.id] || 0])),
+    }));
+  }
   if (mode === "account") {
-    const accounts = analysisTrendAccountOptions(points).filter((account) => selectedAnalysisTrendAccountIds.has(account.id)).slice(0, 6);
+    const accounts = analysisTrendAccountOptions(points).filter((account) => selectedAnalysisTrendAccountIds.has(account.id));
     series = accounts.map((account, index) => ({
       key: `account_${index}`,
       label: account.name,
@@ -2905,6 +3020,75 @@ function renderAnalysisTrendChart(svg, chart, metric = analysisTrendMetricConfig
     axisFormatter: (value) => metric.valueType === "percent" ? `${(Number(value || 0) * 100).toFixed(0)}%` : (state.settings.privacy ? privateMoneyPlaceholder() : compactMoney(value)),
     valueFormatter: (value) => analysisTrendPlainValue(value, analysisTrendMetric),
   });
+}
+
+function analysisHealthTrendSeries() {
+  return [
+    { key: "liabilityRatio", label: "负债率", color: "#dc2626" },
+    { key: "cashRatio", label: "流动占比", color: "#2563eb" },
+    { key: "investmentRatio", label: "投资占比", color: "#059669" },
+  ];
+}
+
+function analysisHealthTrendData() {
+  return periodSnapshotPoints(analysisHealthTrendPeriod, periodConfig(analysisHealthTrendPeriod).limit)
+    .map((point) => {
+      const metrics = healthMetricValues(snapshotTotal(point.snapshot));
+      return {
+        ...point,
+        liabilityRatio: metrics.liabilityRatio,
+        cashRatio: metrics.cashRatio,
+        investmentRatio: metrics.investmentRatio,
+        assets: metrics.assets,
+      };
+    })
+    .filter((point) => point.assets > 0);
+}
+
+function renderAnalysisHealthTrend() {
+  renderAnalysisHealthTrendControls();
+  const svg = $("#analysisHealthTrendChart");
+  const summary = $("#analysisHealthTrendSummary");
+  const legend = $("#analysisHealthTrendLegend");
+  if (!svg || !summary || !legend) return;
+  const points = analysisHealthTrendData();
+  const series = analysisHealthTrendSeries();
+  if (!points.length) {
+    summary.textContent = "暂无可计算资产健康趋势的历史快照";
+    legend.innerHTML = "";
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#667085">暂无资产健康趋势数据</text>`;
+    return;
+  }
+  const last = points[points.length - 1];
+  const previous = points[points.length - 2];
+  const latestText = series.map((item) => `${item.label} ${percentText(last[item.key] || 0)}`).join(" · ");
+  const changeText = previous
+    ? `较上一点 负债率 ${healthTrendChangeText((last.liabilityRatio || 0) - (previous.liabilityRatio || 0))} · 流动 ${healthTrendChangeText((last.cashRatio || 0) - (previous.cashRatio || 0))} · 投资 ${healthTrendChangeText((last.investmentRatio || 0) - (previous.investmentRatio || 0))}`
+    : "";
+  summary.innerHTML = `
+    <span>${escapeHtml(latestText)}</span>
+    ${changeText ? `<span>${changeText}</span>` : ""}
+  `;
+  legend.innerHTML = series.map((item) => `<span><i style="background:${item.color};"></i>${escapeHtml(item.label)}</span>`).join("");
+  renderInteractiveLineChart(svg, points, series, {
+    chartId: "analysisHealthTrend",
+    height: 220,
+    pad: { top: 24, right: 28, bottom: 44, left: 72 },
+    emptyText: "暂无资产健康趋势数据",
+    axisFormatter: (value) => `${(Number(value || 0) * 100).toFixed(0)}%`,
+    valueFormatter: (value) => `${(Number(value || 0) * 100).toFixed(1)}%`,
+  });
+}
+
+function renderAnalysisHealthTrendControls() {
+  $$("[data-analysis-health-trend-period]").forEach((button) => {
+    button.classList.toggle("active", button.dataset.analysisHealthTrendPeriod === analysisHealthTrendPeriod);
+  });
+}
+
+function healthTrendChangeText(value) {
+  const number = Number(value || 0) * 100;
+  return `<b class="${number >= 0 ? "positive" : "negative"}">${number >= 0 ? "+" : ""}${number.toFixed(1)}pct</b>`;
 }
 
 function renderGroups(total) {
@@ -4656,12 +4840,19 @@ function bindEvents() {
   $("#analysisTrendMetricSelect")?.addEventListener("change", (event) => {
     analysisTrendMetric = event.currentTarget.value || "balance";
     selectedAnalysisTrendAccountIds.clear();
+    selectedAnalysisTrendTypeNames.clear();
     renderAnalysisTrend();
   });
   $$("[data-analysis-trend-period]").forEach((button) => {
     button.addEventListener("click", () => {
       analysisTrendPeriod = button.dataset.analysisTrendPeriod || "month";
       renderAnalysisTrend();
+    });
+  });
+  $$("[data-analysis-health-trend-period]").forEach((button) => {
+    button.addEventListener("click", () => {
+      analysisHealthTrendPeriod = button.dataset.analysisHealthTrendPeriod || "month";
+      renderAnalysisHealthTrend();
     });
   });
   $("#analysisTrendModeSelect")?.addEventListener("change", (event) => {
@@ -4677,17 +4868,29 @@ function bindEvents() {
   });
   $("#analysisTrendAccountPopover")?.addEventListener("click", (event) => {
     event.stopPropagation();
-    const input = event.target.closest("[data-analysis-trend-account]");
+    const selectedIds = selectedAnalysisTrendOptionIds();
+    const options = analysisTrendSelectableOptions(analysisTrendData());
+    const selectAllButton = event.target.closest("[data-analysis-trend-select-all]");
+    if (selectAllButton) {
+      selectedIds.clear();
+      options.forEach((option) => selectedIds.add(option.id));
+      renderAnalysisTrend();
+      return;
+    }
+    const selectTopButton = event.target.closest("[data-analysis-trend-select-top]");
+    if (selectTopButton) {
+      selectedIds.clear();
+      options.slice(0, Math.min(4, options.length)).forEach((option) => selectedIds.add(option.id));
+      renderAnalysisTrend();
+      return;
+    }
+    const input = event.target.closest("[data-analysis-trend-option]");
     if (!input) return;
-    const accountId = input.dataset.analysisTrendAccount;
+    const optionId = input.dataset.analysisTrendOption;
     if (input.checked) {
-      if (selectedAnalysisTrendAccountIds.size >= 6) {
-        input.checked = false;
-        return;
-      }
-      selectedAnalysisTrendAccountIds.add(accountId);
-    } else if (selectedAnalysisTrendAccountIds.size > 1) {
-      selectedAnalysisTrendAccountIds.delete(accountId);
+      selectedIds.add(optionId);
+    } else if (selectedIds.size > 1) {
+      selectedIds.delete(optionId);
     } else {
       input.checked = true;
       return;

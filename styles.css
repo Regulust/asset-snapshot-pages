@@ -13,6 +13,20 @@
   --shadow: 0 16px 40px rgba(23, 32, 51, 0.08);
   --sheet-width: 560px;
   --sheet-vw: 50vw;
+  --text-page-title: clamp(30px, 3.2vw, 38px);
+  --text-module-title: 18px;
+  --text-section-title: 15px;
+  --text-item-title: 14px;
+  --text-body: 13px;
+  --text-support: 12px;
+  --text-caption: 11px;
+  --weight-strong: 800;
+  --weight-title: 700;
+  --weight-body: 500;
+  --density-field: 38px;
+  --density-button: 38px;
+  --density-compact: 30px;
+  --density-icon: 32px;
 }
 
 * {
@@ -1834,7 +1848,9 @@ textarea {
 
 .report-summary-grid article {
   display: grid;
-  gap: 5px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
   padding: 11px 12px;
   border: 1px solid var(--line);
@@ -1851,6 +1867,7 @@ textarea {
   overflow: hidden;
   color: var(--ink);
   font-size: 18px;
+  text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2421,6 +2438,42 @@ textarea {
   margin-bottom: 12px;
 }
 
+.analysis-health-trend-block {
+  margin-top: 2px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.analysis-trend-subheading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px 12px;
+}
+
+.analysis-trend-subheading > div:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 160px;
+}
+
+.analysis-trend-subheading .trend-control-stack {
+  flex: 1 1 420px;
+  justify-content: flex-end;
+}
+
+.analysis-trend-subheading b {
+  color: var(--ink);
+  font-size: var(--text-item-title);
+  font-weight: var(--weight-title);
+}
+
+.analysis-trend-subheading span {
+  color: var(--muted);
+  font-size: var(--text-support);
+}
+
 .analysis-trend-summary {
   display: flex;
   flex-wrap: wrap;
@@ -2476,6 +2529,17 @@ textarea {
   font-size: 11px;
   font-weight: 700;
   line-height: 1.25;
+}
+
+.trend-account-popover-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.trend-account-popover-heading span {
+  flex: 1 1 110px;
 }
 
 .trend-account-group {
@@ -2644,6 +2708,7 @@ textarea {
   justify-content: flex-end;
   gap: 0.22em;
   overflow: hidden;
+  font-size: var(--text-support);
   font-weight: 600;
   line-height: 1;
   text-align: right;
@@ -2653,11 +2718,13 @@ textarea {
 
 .gain-column-summary b {
   color: inherit;
+  font-size: inherit;
   line-height: 1;
-  font-weight: 900;
+  font-weight: 800;
 }
 
 .gain-column-summary .money {
+  font-size: inherit;
   color: inherit;
   font-weight: inherit;
 }
@@ -3385,6 +3452,286 @@ textarea {
   text-align: center;
 }
 
+/* v133 typography and component density system */
+h1 {
+  font-size: var(--text-page-title);
+  font-weight: var(--weight-strong);
+  line-height: 1.08;
+}
+
+h2,
+.panel-heading h2,
+.sheet-heading h2,
+.app-dialog h2 {
+  font-size: var(--text-module-title);
+  font-weight: var(--weight-strong);
+  line-height: 1.22;
+}
+
+.report-section-heading h3,
+.custom-currency-form h3,
+.currency-config-actions h3,
+.account-list-section h3,
+.import-preview-heading h3,
+.snapshot-rate-dialog .import-preview-heading h3,
+.danger-zone h3,
+.backup-fallback summary,
+.heatmap-detail-panel h3 {
+  font-size: var(--text-section-title);
+  font-weight: var(--weight-title);
+  line-height: 1.28;
+}
+
+.metric-card > span,
+.account-card b,
+.table-row b,
+.account-management-group .account-card b,
+.account-detail-row b,
+.account-detail-row > div:last-child b,
+.health-card span,
+.health-detail-main b,
+.treemap-toolbar b,
+.currency-exposure-card b,
+.currency-exposure-row b,
+.contribution-total-card span,
+.report-summary-grid b,
+.import-preview-grid b,
+.type-group-heading b,
+.health-scope-group-meta b,
+.settings-launcher b {
+  font-size: var(--text-item-title);
+  font-weight: var(--weight-title);
+  line-height: 1.28;
+}
+
+.metric-card strong {
+  font-size: clamp(24px, 2.2vw, 30px);
+  font-weight: var(--weight-strong);
+  line-height: 1.05;
+}
+
+.health-card b {
+  font-size: 20px;
+  font-weight: var(--weight-strong);
+  line-height: 1.05;
+}
+
+.contribution-total-card b,
+.report-summary-grid b {
+  font-size: 18px;
+  font-weight: var(--weight-strong);
+  line-height: 1.1;
+}
+
+body,
+input,
+select,
+textarea,
+button,
+label,
+.bar-info,
+.manager-toolbar,
+.operation-status,
+.danger-zone p,
+.app-dialog-message,
+.health-detail-main b,
+.health-detail-value b,
+.treemap-tooltip b {
+  font-size: var(--text-body);
+  line-height: 1.45;
+}
+
+.eyebrow,
+.metric-card small,
+.panel-heading span,
+.sheet-heading span,
+.settings-launcher span,
+.hint,
+.meta,
+.field-hint,
+.field-label,
+.balance-field-inputs label > span,
+.type-group-heading span,
+.health-card small,
+.health-scope-group-meta small,
+.health-scope-chip span,
+.health-detail-main small,
+.health-detail-value small,
+.report-summary-grid span,
+.report-section-heading span,
+.contribution-total-card small,
+.heatmap-detail-row span,
+.currency-exposure-row span,
+.treemap-toolbar span,
+.import-preview-heading p,
+.import-preview-grid span,
+.dialog-confirm-field span,
+.currency-choice span,
+.treemap-tooltip span {
+  font-size: var(--text-support);
+  font-weight: var(--weight-body);
+  line-height: 1.45;
+}
+
+.currency-choice small,
+.heatmap-legend,
+.treemap-tile span,
+.treemap-tile small,
+.gain-ranking-list span,
+.import-preview-grid span {
+  font-size: var(--text-caption);
+}
+
+input,
+select,
+textarea {
+  min-height: var(--density-field);
+  border-radius: 8px;
+  padding: 7px 10px;
+}
+
+input,
+select {
+  height: var(--density-field);
+}
+
+.tab,
+.ghost-button,
+.primary-button,
+.secondary-button,
+.file-button,
+.danger-button {
+  min-height: var(--density-button);
+  border-radius: 8px;
+  padding: 0 13px;
+  font-size: var(--text-body);
+  font-weight: var(--weight-title);
+  line-height: 1;
+}
+
+.secondary-button.small,
+.compact-select,
+.control-select,
+.control-select-button,
+.trend-toggle,
+.trend-period,
+.snapshot-calendar-nav,
+.snapshot-calendar-month-select .control-select,
+.contribution-lookback-field .control-select,
+.heatmap-controls .control-select,
+.heatmap-active-toggle,
+.status-filter-toggle,
+.net-worth-point-filter {
+  min-height: var(--density-compact);
+  height: var(--density-compact);
+  font-size: var(--text-support);
+  font-weight: var(--weight-title);
+}
+
+.icon-button,
+.drag-handle,
+.sheet-close,
+.import-preview-close {
+  width: var(--density-icon);
+  height: var(--density-icon);
+  min-height: var(--density-icon);
+  border-radius: 8px;
+}
+
+.icon-button svg {
+  width: 16px;
+  height: 16px;
+}
+
+.panel {
+  padding: 16px;
+}
+
+.panel-heading {
+  margin-bottom: 14px;
+}
+
+.metric-card {
+  min-height: 88px;
+  padding: 14px 16px;
+}
+
+.account-card,
+.table-row,
+.health-detail-row,
+.currency-exposure-card,
+.contribution-total-card,
+.report-summary-grid article,
+.import-preview-grid article {
+  padding: 10px 12px;
+}
+
+.account-card b,
+.table-row b,
+.account-detail-row b,
+.account-management-group .account-card b {
+  margin-bottom: 3px;
+}
+
+.account-sheet {
+  --sheet-padding: 20px;
+}
+
+.sheet-heading {
+  margin-bottom: 18px;
+}
+
+.app-dialog,
+.snapshot-rate-dialog,
+.import-preview-dialog {
+  border-radius: 10px;
+  padding: 18px;
+}
+
+.form-grid,
+.balance-grid,
+.account-form-grid,
+.snapshot-meta-grid,
+.type-manager-grid,
+.import-preview-grid,
+.action-grid {
+  gap: 12px;
+}
+
+.balance-field {
+  min-height: 50px;
+  padding: 6px 0;
+}
+
+.balance-field > span {
+  font-size: var(--text-body);
+  font-weight: var(--weight-body);
+}
+
+.health-grid,
+.report-summary-grid {
+  gap: 8px;
+}
+
+.health-card,
+.contribution-total-card {
+  min-height: 56px;
+}
+
+.settings-launcher {
+  min-height: 86px;
+  padding: 13px;
+}
+
+.status-filter-toggle,
+.trend-toggle,
+.net-worth-point-filter,
+#importPreviewBadge,
+.archived-accounts > summary span {
+  font-size: var(--text-support);
+  font-weight: var(--weight-title);
+}
+
 .positive {
   color: var(--green);
 }
@@ -3398,6 +3745,16 @@ textarea {
 }
 
 @media (max-width: 860px) {
+  :root {
+    --text-page-title: 28px;
+    --text-module-title: 17px;
+    --text-section-title: 15px;
+    --text-item-title: 14px;
+    --density-field: 38px;
+    --density-button: 38px;
+    --density-icon: 32px;
+  }
+
   .metric-grid,
   .split-grid,
   .health-grid,
@@ -3419,6 +3776,7 @@ textarea {
 
   .tabs {
     overflow-x: auto;
+    gap: 6px;
   }
 
   .tab {
@@ -3506,6 +3864,17 @@ textarea {
     --sheet-padding: 16px;
     width: 100%;
     padding: 18px var(--sheet-padding);
+  }
+
+  .sheet-heading {
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .panel-heading,
+  .report-section-heading,
+  .import-preview-heading {
+    gap: 8px;
   }
 
   .account-form-grid {
@@ -3600,7 +3969,7 @@ textarea {
   }
 
   .health-card b {
-    font-size: 20px;
+    font-size: 19px;
   }
 
   .health-detail-row {
@@ -3690,6 +4059,26 @@ textarea {
 }
 
 @media (max-width: 420px) {
+  :root {
+    --text-page-title: 26px;
+    --text-module-title: 16px;
+    --text-section-title: 14px;
+    --text-body: 12px;
+    --text-support: 11px;
+    --density-field: 36px;
+    --density-button: 36px;
+    --density-icon: 30px;
+  }
+
+  .app-header {
+    gap: 10px;
+    padding-top: 20px;
+  }
+
+  .panel {
+    padding: 14px;
+  }
+
   .account-list-panel > .panel-heading {
     flex-wrap: wrap;
   }
@@ -3712,5 +4101,19 @@ textarea {
   .heatmap-month,
   .heatmap-month-single {
     width: min(100%, 236px);
+  }
+
+  .account-card,
+  .table-row,
+  .health-detail-row,
+  .currency-exposure-card,
+  .contribution-total-card,
+  .report-summary-grid article,
+  .import-preview-grid article {
+    padding: 9px 10px;
+  }
+
+  .account-sheet {
+    padding: 16px var(--sheet-padding);
   }
 }

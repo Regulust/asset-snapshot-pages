@@ -7,7 +7,7 @@
     <meta name="description" content="本地资产余额快照记账 PWA" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=132" />
+    <link rel="stylesheet" href="./styles.css?v=133" />
     <title>资产快照本</title>
   </head>
   <body>
@@ -451,40 +451,64 @@
           <div class="panel-heading analysis-trend-heading">
             <div>
               <h2>趋势分析</h2>
-              <span>按历史快照查看余额、成本和收益变化</span>
-            </div>
-            <div class="trend-control-stack">
-              <label class="control-field">
-                <select id="analysisTrendMetricSelect" class="control-select analysis-trend-metric-select" aria-label="趋势指标">
-                  <option value="balance">余额</option>
-                  <option value="cost">成本</option>
-                  <option value="gain">收益</option>
-                  <option value="gainRate">收益率</option>
-                </select>
-              </label>
-              <label class="control-field">
-                <select id="analysisTrendModeSelect" class="control-select analysis-trend-mode-select" aria-label="趋势查看方式">
-                  <option value="total">汇总</option>
-                  <option value="group">按分组</option>
-                  <option value="account">按账户</option>
-                </select>
-              </label>
-              <div class="trend-period-tabs analysis-period-tabs" role="group" aria-label="趋势周期">
-                <button class="trend-period" data-analysis-trend-period="day" type="button">日</button>
-                <button class="trend-period active" data-analysis-trend-period="month" type="button">月</button>
-                <button class="trend-period" data-analysis-trend-period="quarter" type="button">季</button>
-                <button class="trend-period" data-analysis-trend-period="year" type="button">年</button>
-              </div>
-              <div class="trend-account-picker" id="analysisTrendAccountPicker" hidden>
-                <button class="control-select-button analysis-trend-account-button" id="toggleAnalysisTrendAccountPicker" type="button" aria-expanded="false">选择账户</button>
-                <div class="trend-account-popover" id="analysisTrendAccountPopover" hidden></div>
-              </div>
+              <span>按历史快照查看多维趋势变化</span>
             </div>
           </div>
           <div class="analysis-trend-block">
+            <div class="analysis-trend-subheading">
+              <div>
+                <b>余额成本收益趋势</b>
+                <span>按历史快照查看余额、成本和收益变化</span>
+              </div>
+              <div class="trend-control-stack">
+                <label class="control-field">
+                  <select id="analysisTrendMetricSelect" class="control-select analysis-trend-metric-select" aria-label="趋势指标">
+                    <option value="balance">余额</option>
+                    <option value="cost">成本</option>
+                    <option value="gain">收益</option>
+                    <option value="gainRate">收益率</option>
+                  </select>
+                </label>
+                <label class="control-field">
+                  <select id="analysisTrendModeSelect" class="control-select analysis-trend-mode-select" aria-label="趋势查看方式">
+                    <option value="total">汇总</option>
+                    <option value="group">按分组</option>
+                    <option value="type">按分类</option>
+                    <option value="account">按账户</option>
+                  </select>
+                </label>
+                <div class="trend-period-tabs analysis-period-tabs" role="group" aria-label="余额成本收益趋势周期">
+                  <button class="trend-period" data-analysis-trend-period="day" type="button">日</button>
+                  <button class="trend-period active" data-analysis-trend-period="month" type="button">月</button>
+                  <button class="trend-period" data-analysis-trend-period="quarter" type="button">季</button>
+                  <button class="trend-period" data-analysis-trend-period="year" type="button">年</button>
+                </div>
+                <div class="trend-account-picker" id="analysisTrendAccountPicker" hidden>
+                  <button class="control-select-button analysis-trend-account-button" id="toggleAnalysisTrendAccountPicker" type="button" aria-expanded="false">选择账户</button>
+                  <div class="trend-account-popover" id="analysisTrendAccountPopover" hidden></div>
+                </div>
+              </div>
+            </div>
             <div class="analysis-trend-summary" id="analysisTrendSummary"></div>
             <div class="trend-legend" id="analysisTrendLegend"></div>
             <svg id="analysisTrendChart" class="line-chart analysis-trend-chart" role="img" aria-label="余额成本收益趋势图"></svg>
+          </div>
+          <div class="analysis-trend-block analysis-health-trend-block">
+            <div class="analysis-trend-subheading">
+              <div>
+                <b>资产健康趋势</b>
+                <span>同步资产健康卡配置口径</span>
+              </div>
+              <div class="trend-period-tabs analysis-period-tabs" role="group" aria-label="资产健康趋势周期">
+                <button class="trend-period" data-analysis-health-trend-period="day" type="button">日</button>
+                <button class="trend-period active" data-analysis-health-trend-period="month" type="button">月</button>
+                <button class="trend-period" data-analysis-health-trend-period="quarter" type="button">季</button>
+                <button class="trend-period" data-analysis-health-trend-period="year" type="button">年</button>
+              </div>
+            </div>
+            <div class="analysis-trend-summary" id="analysisHealthTrendSummary"></div>
+            <div class="trend-legend" id="analysisHealthTrendLegend"></div>
+            <svg id="analysisHealthTrendChart" class="line-chart analysis-trend-chart" role="img" aria-label="资产健康趋势图"></svg>
           </div>
         </section>
 
@@ -709,6 +733,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=132" defer></script>
+    <script src="./app.js?v=133" defer></script>
   </body>
 </html>
