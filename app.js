@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v129";
+const APP_VERSION = "v132";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -47,6 +47,43 @@ const DEFAULT_SNAPSHOT_TAGS = [
   "日常调整",
 ];
 
+const HEALTH_CARD_KEYS = ["liability", "cash", "investment", "account-concentration", "group-concentration"];
+
+const HEALTH_CARD_META = {
+  liability: {
+    label: "负债率",
+    title: "负债率计算口径",
+    subtitle: "显示全部账户类型，勾选要计入负债率分子的分类",
+    defaultText: "默认只计入负债账户分类",
+  },
+  cash: {
+    label: "流动占比",
+    title: "流动占比计算口径",
+    subtitle: "勾选要计入流动资产分子的账户类型",
+    defaultText: "默认沿用现金、银行卡、网络支付等流动类型",
+  },
+  investment: {
+    label: "投资占比",
+    title: "投资占比计算口径",
+    subtitle: "勾选要计入投资资产分子的账户类型",
+    defaultText: "默认沿用投资增值类账户类型",
+  },
+  "account-concentration": {
+    label: "最大账户集中度",
+    title: "账户集中度范围",
+    subtitle: "勾选要参与最大账户占比比较的账户类型",
+    defaultText: "默认比较全部资产账户",
+  },
+  "group-concentration": {
+    label: "最大分组占比",
+    title: "分组集中度范围",
+    subtitle: "勾选要参与最大分组占比比较的账户类型",
+    defaultText: "默认比较全部资产账户",
+  },
+};
+
+const DEFAULT_HEALTH_CONFIG = defaultHealthConfig(DEFAULT_ACCOUNT_TYPE_GROUPS);
+
 const defaultState = {
   settings: {
     baseCurrency: "CNY",
@@ -55,6 +92,7 @@ const defaultState = {
     rates: Object.fromEntries(currencies.map((item) => [item.code, item.rate])),
     privacy: false,
     accountTypeGroups: structuredClone(DEFAULT_ACCOUNT_TYPE_GROUPS),
+    healthConfig: structuredClone(DEFAULT_HEALTH_CONFIG),
     accountGroupOrder: [],
     snapshotTags: DEFAULT_SNAPSHOT_TAGS,
     deletedCurrencyCodes: [],
@@ -112,6 +150,10 @@ const selectedCurrencyCodes = new Set();
 let typeManageMode = false;
 const selectedTypeGroupIds = new Set();
 const selectedTypeIds = new Set();
+let healthScopeDraft = null;
+let healthScopeDraftDirty = false;
+let activeHealthDetailKind = null;
+let activeHealthScopeKind = "liability";
 let tagDraft = null;
 let tagDraftDirty = false;
 let tagManageMode = false;
@@ -260,6 +302,7 @@ function loadState() {
       ...usedCurrencyCodes,
     ])].filter((code) => [...currencies, ...settings.customCurrencies].some((item) => item.code === code) && !settings.deletedCurrencyCodes.includes(code));
     settings.accountTypeGroups = normalizeTypeGroups(settings.accountTypeGroups);
+    settings.healthConfig = normalizeHealthConfig(settings.healthConfig, settings.accountTypeGroups);
     settings.snapshotTags = normalizeSnapshotTagSettings(settings.snapshotTags);
     const needsArchiveMigration = !parsed.settings?.archiveMergeVersion;
     const accounts = (parsed.accounts || []).map((account) => normalizeAccount(account, settings.accountTypeGroups, needsArchiveMigration));
@@ -299,6 +342,76 @@ function normalizeTypeGroups(groups) {
     kind: group.kind === "liability" ? "liability" : "asset",
     types: Array.isArray(group.types) ? group.types.map((type) => ({ id: type.id || id(), name: type.name || "未命名小类" })) : [],
   }));
+}
+
+function isDefaultHealthTypeSelected(cardKey, group, type) {
+  if (cardKey === "liability") return group.kind === "liability";
+  if (cardKey === "cash") {
+    const groupName = group.name || "";
+    return group.kind === "asset" && (/现金|流动/.test(groupName) || (group.id === "assets" && ["cash", "bank", "digital"].includes(type.id)));
+  }
+  if (cardKey === "investment") {
+    return group.kind === "asset" && ((group.name || "").includes("投资增值") || type.id === "investment");
+  }
+  if (cardKey === "account-concentration" || cardKey === "group-concentration") return group.kind === "asset";
+  return group.kind === "asset";
+}
+
+function defaultHealthScopeForCard(cardKey, groups = DEFAULT_ACCOUNT_TYPE_GROUPS) {
+  const excludedGroups = groups.filter((group) => !group.types.some((type) => isDefaultHealthTypeSelected(cardKey, group, type)));
+  const excludedTypeIds = groups.flatMap((group) =>
+    group.types
+      .filter((type) => excludedGroups.some((excludedGroup) => excludedGroup.id === group.id) || !isDefaultHealthTypeSelected(cardKey, group, type))
+      .map((type) => type.id)
+  );
+  return {
+    scopeVersion: 2,
+    excludedGroupIds: excludedGroups.map((group) => group.id),
+    excludedTypeIds,
+  };
+}
+
+function normalizeHealthScope(scope, groups, { cardKey = "liability" } = {}) {
+  const source = scope && typeof scope === "object" && !Array.isArray(scope) ? scope : {};
+  const validGroupIds = new Set(groups.map((group) => group.id));
+  const validTypeIds = new Set(groups.flatMap((group) => group.types.map((type) => type.id)));
+  const defaultScope = defaultHealthScopeForCard(cardKey, groups);
+  if (source.scopeVersion !== 2) {
+    return {
+      scopeVersion: 2,
+      excludedGroupIds: [...new Set([
+        ...defaultScope.excludedGroupIds,
+        ...(Array.isArray(source.excludedGroupIds) ? source.excludedGroupIds : []),
+      ])].filter((groupId) => validGroupIds.has(groupId)),
+      excludedTypeIds: [...new Set([
+        ...defaultScope.excludedTypeIds,
+        ...(Array.isArray(source.excludedTypeIds) ? source.excludedTypeIds : []),
+      ])].filter((typeId) => validTypeIds.has(typeId)),
+    };
+  }
+  return {
+    scopeVersion: 2,
+    excludedGroupIds: [...new Set(Array.isArray(source.excludedGroupIds) ? source.excludedGroupIds : [])]
+      .filter((groupId) => validGroupIds.has(groupId)),
+    excludedTypeIds: [...new Set(Array.isArray(source.excludedTypeIds) ? source.excludedTypeIds : [])]
+      .filter((typeId) => validTypeIds.has(typeId)),
+  };
+}
+
+function normalizeHealthConfig(config, groups = DEFAULT_ACCOUNT_TYPE_GROUPS) {
+  const source = config && typeof config === "object" && !Array.isArray(config) ? config : {};
+  return Object.fromEntries(HEALTH_CARD_KEYS.map((cardKey) => [
+    cardKey,
+    normalizeHealthScope(source[cardKey], groups, { cardKey }),
+  ]));
+}
+
+function healthConfig(groups = typeGroups()) {
+  return normalizeHealthConfig(state.settings.healthConfig, groups);
+}
+
+function defaultHealthConfig(groups = DEFAULT_ACCOUNT_TYPE_GROUPS) {
+  return Object.fromEntries(HEALTH_CARD_KEYS.map((cardKey) => [cardKey, defaultHealthScopeForCard(cardKey, groups)]));
 }
 
 function typeGroups() {
@@ -887,62 +1000,27 @@ function reportAnalysisSectionHtml(module) {
 
 function renderHealthCards(total) {
   $("#healthCards").innerHTML = healthCardsHtml(total);
-  return;
-  const assets = Math.max(total.assets || 0, 0);
-  const includedAssetRows = total.accounts.filter((row) => row.account.includeInNetWorth !== false && row.converted > 0);
-  const liabilityTotal = total.accounts
-    .filter((row) => isLiabilityAccount(row.account) && row.account.includeInNetWorth !== false && row.converted < 0)
-    .reduce((sum, row) => sum + Math.abs(row.converted), 0);
-  const liabilityRate = assets ? liabilityTotal / assets : 0;
-  const cashTotal = includedAssetRows
-    .filter((row) => isCashAccount(row.account))
-    .reduce((sum, row) => sum + row.converted, 0);
-  const investmentTotal = includedAssetRows
-    .filter((row) => isInvestmentAccount(row.account))
-    .reduce((sum, row) => sum + row.converted, 0);
-  const maxAccount = includedAssetRows.reduce((max, row) => row.converted > (max?.converted || 0) ? row : max, null);
-  const groupEntries = Object.entries(total.groups || {}).filter(([, value]) => value > 0);
-  const maxGroup = groupEntries.reduce((max, entry) => Math.abs(entry[1]) > Math.abs(max?.[1] || 0) ? entry : max, null);
-  const cards = [
-    { key: "liability", label: "负债率", value: percentText(liabilityRate), hint: "负债 / 资产" },
-    { key: "cash", label: "流动占比", value: percentText(assets ? cashTotal / assets : 0), hint: "现金/流动大类 / 资产" },
-    { key: "investment", label: "投资占比", value: percentText(assets ? investmentTotal / assets : 0), hint: "投资增值大类 / 资产" },
-    {
-      key: "account-concentration",
-      label: "最大账户集中度",
-      value: percentText(assets && maxAccount ? maxAccount.converted / assets : 0),
-      hint: maxAccount ? maxAccount.account.name : "暂无资产账户",
-    },
-    {
-      key: "group-concentration",
-      label: "最大分组占比",
-      value: percentText(assets && maxGroup ? maxGroup[1] / assets : 0),
-      hint: maxGroup ? maxGroup[0] : "暂无资产分组",
-    },
-  ];
-  $("#healthCards").innerHTML = cards.map((card) => `
-    <button class="health-card" data-health-detail="${card.key}" type="button">
-      <span>${escapeHtml(card.label)}</span>
-      <b>${escapeHtml(card.value)}</b>
-      <small>${escapeHtml(card.hint)}</small>
-    </button>
-  `).join("");
 }
 
 function analysisHealthCards(total) {
   const assets = Math.max(total.assets || 0, 0);
-  const includedAssetRows = total.accounts.filter((row) => row.account.includeInNetWorth !== false && row.converted > 0);
-  const liabilityTotal = total.accounts
-    .filter((row) => isLiabilityAccount(row.account) && row.account.includeInNetWorth !== false && row.converted < 0)
-    .reduce((sum, row) => sum + Math.abs(row.converted), 0);
-  const cashTotal = includedAssetRows
-    .filter((row) => isCashAccount(row.account))
+  const liabilityRows = healthScopedRows(total, "liability")
+    .filter((row) => row.account.includeInNetWorth !== false && row.converted < 0);
+  const cashRows = healthScopedRows(total, "cash")
+    .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0);
+  const investmentRows = healthScopedRows(total, "investment")
+    .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0);
+  const concentrationRows = healthScopedRows(total, "account-concentration")
+    .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0);
+  const groupConcentrationRows = healthScopedRows(total, "group-concentration")
+    .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0);
+  const liabilityTotal = liabilityRows.reduce((sum, row) => sum + Math.abs(row.converted), 0);
+  const cashTotal = cashRows
     .reduce((sum, row) => sum + row.converted, 0);
-  const investmentTotal = includedAssetRows
-    .filter((row) => isInvestmentAccount(row.account))
+  const investmentTotal = investmentRows
     .reduce((sum, row) => sum + row.converted, 0);
-  const maxAccount = includedAssetRows.reduce((max, row) => row.converted > (max?.converted || 0) ? row : max, null);
-  const groupEntries = Object.entries(total.groups || {}).filter(([, value]) => value > 0);
+  const maxAccount = concentrationRows.reduce((max, row) => row.converted > (max?.converted || 0) ? row : max, null);
+  const groupEntries = healthScopedGroupEntries(groupConcentrationRows);
   const maxGroup = groupEntries.reduce((max, entry) => Math.abs(entry[1]) > Math.abs(max?.[1] || 0) ? entry : max, null);
   return [
     { key: "liability", label: "\u8d1f\u503a\u7387", value: percentText(assets ? liabilityTotal / assets : 0), hint: "\u8d1f\u503a / \u8d44\u4ea7" },
@@ -1165,10 +1243,14 @@ function renderGainAnalysis(total) {
 }
 
 function openHealthDetail(kind) {
+  activeHealthDetailKind = kind;
   const total = snapshotTotal(latestSnapshot());
   const detail = healthDetailData(kind, total);
   $("#healthDetailTitle").textContent = detail.title;
   $("#healthDetailSubtitle").textContent = detail.subtitle;
+  const configureButton = $("#configureHealthDetail");
+  configureButton.hidden = !HEALTH_CARD_KEYS.includes(kind);
+  configureButton.textContent = "配置口径";
   $("#healthDetailContent").innerHTML = detail.rows.length
     ? detail.rows.map((row, index) => `
       <button class="health-detail-row" type="button">
@@ -1191,23 +1273,35 @@ function openHealthDetail(kind) {
 
 function closeHealthDetailSheet() {
   $("#healthDetailSheet").hidden = true;
+  activeHealthDetailKind = null;
   if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
 }
 
 function healthDetailData(kind, total) {
-  const assetRows = total.accounts
+  const assets = Math.max(total.assets || 0, 0);
+  const assetRows = healthScopedRows(total, kind)
     .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0)
     .sort((a, b) => b.converted - a.converted);
-  const assets = Math.max(total.assets || 0, 0);
-  const liabilityRows = total.accounts
-    .filter((row) => isLiabilityAccount(row.account) && row.account.includeInNetWorth !== false && row.converted < 0)
+  const liabilityRows = healthScopedRows(total, "liability")
+    .filter((row) => row.account.includeInNetWorth !== false && row.converted < 0)
     .map((row) => ({ ...row, detailValue: Math.abs(row.converted) }))
     .sort((a, b) => b.detailValue - a.detailValue);
   const liabilityTotal = liabilityRows.reduce((sum, row) => sum + row.detailValue, 0);
+  const cashRows = healthScopedRows(total, "cash")
+    .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0)
+    .sort((a, b) => b.converted - a.converted);
+  const investmentRows = healthScopedRows(total, "investment")
+    .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0)
+    .sort((a, b) => b.converted - a.converted);
+  const accountConcentrationRows = healthScopedRows(total, "account-concentration")
+    .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0)
+    .sort((a, b) => b.converted - a.converted);
+  const groupConcentrationRows = healthScopedGroupEntries(healthScopedRows(total, "group-concentration")
+    .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0));
   const detailMap = {
     liability: {
       title: "负债率明细",
-      subtitle: "各负债账户占总负债比例",
+      subtitle: "所选范围内负债账户占已计入负债比例",
       base: liabilityTotal,
       rows: liabilityRows.map((row) => ({
         label: row.account.name,
@@ -1217,33 +1311,29 @@ function healthDetailData(kind, total) {
     },
     cash: {
       title: "流动占比明细",
-      subtitle: "现金类账户占总资产比例",
+      subtitle: "所选流动账户占总资产比例",
       base: assets,
-      rows: assetRows
-        .filter((row) => isCashAccount(row.account))
-        .map((row) => ({
-          label: row.account.name,
-          hint: typeLabel(row.account.type),
-          value: row.converted,
-        })),
+      rows: cashRows.map((row) => ({
+        label: row.account.name,
+        hint: typeLabel(row.account.type),
+        value: row.converted,
+      })),
     },
     investment: {
       title: "投资占比明细",
-      subtitle: "投资类账户占总资产比例",
+      subtitle: "所选投资账户占总资产比例",
       base: assets,
-      rows: assetRows
-        .filter((row) => isInvestmentAccount(row.account))
-        .map((row) => ({
-          label: row.account.name,
-          hint: typeLabel(row.account.type),
-          value: row.converted,
-        })),
+      rows: investmentRows.map((row) => ({
+        label: row.account.name,
+        hint: typeLabel(row.account.type),
+        value: row.converted,
+      })),
     },
     "account-concentration": {
       title: "账户集中度前三",
-      subtitle: "单一账户占总资产比例",
+      subtitle: "所选范围内单一账户占总资产比例",
       base: assets,
-      rows: assetRows.slice(0, 3).map((row) => ({
+      rows: accountConcentrationRows.slice(0, 3).map((row) => ({
         label: row.account.name,
         hint: accountGroupName(row.account),
         value: row.converted,
@@ -1251,10 +1341,9 @@ function healthDetailData(kind, total) {
     },
     "group-concentration": {
       title: "分组集中度前三",
-      subtitle: "资产分组占总资产比例",
+      subtitle: "所选范围内资产分组占总资产比例",
       base: assets,
-      rows: Object.entries(total.groups || {})
-        .filter(([, value]) => value > 0)
+      rows: groupConcentrationRows
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3)
         .map(([group, value]) => ({
@@ -1273,20 +1362,100 @@ function healthDetailData(kind, total) {
   };
 }
 
-function isInvestmentAccount(account) {
-  const typeGroupName = typeGroupFor(account.type)?.name || "";
-  return typeGroupName.includes("投资增值");
+function accountInHealthScope(account, cardKey, groups = typeGroups(), config = healthConfig(groups)) {
+  const group = groups.find((item) => item.types.some((type) => type.id === account.type));
+  if (!group) return false;
+  const scope = config[cardKey] || defaultHealthScopeForCard(cardKey, groups);
+  if ((scope.excludedGroupIds || []).includes(group.id)) return false;
+  if ((scope.excludedTypeIds || []).includes(account.type)) return false;
+  return true;
 }
 
-function isCashAccount(account) {
-  const typeGroup = typeGroupFor(account.type);
-  const typeGroupName = typeGroup?.name || "";
-  if (/现金|流动/.test(typeGroupName)) return true;
-  return typeGroup?.id === "assets" && ["cash", "bank", "digital"].includes(account.type);
+function healthScopedRows(total, cardKey) {
+  const groups = typeGroups();
+  const config = healthConfig(groups);
+  return (total.accounts || []).filter((row) => accountInHealthScope(row.account, cardKey, groups, config));
 }
 
-function isLiabilityAccount(account) {
-  return accountKind(account.type) === "liability";
+function healthScopedGroupEntries(rows) {
+  const grouped = rows.reduce((result, row) => {
+    const groupName = accountGroupName(row.account);
+    result[groupName] = (result[groupName] || 0) + row.converted;
+    return result;
+  }, {});
+  return Object.entries(grouped).filter(([, value]) => value > 0);
+}
+
+function isLiabilityRateAccount(account, groups = typeGroups(), config = healthConfig(groups)) {
+  return accountInHealthScope(account, "liability", groups, config);
+}
+
+function activeHealthScopeMeta(kind = activeHealthScopeKind) {
+  const meta = HEALTH_CARD_META[kind] || HEALTH_CARD_META.liability;
+  return {
+    title: meta.title,
+    subtitle: meta.subtitle,
+    emptyText: "暂无可配置的账户类型",
+    defaultText: meta.defaultText,
+  };
+}
+
+function renderHealthScopeManager() {
+  const groups = typeGroups();
+  const meta = activeHealthScopeMeta();
+  const draft = healthScopeDraft || structuredClone(healthConfig().liability);
+  const selectedGroupCount = groups.filter((group) => !draft.excludedGroupIds.includes(group.id)).length;
+  const selectedTypeCount = groups.reduce((sum, group) => sum + group.types.filter((type) =>
+    !draft.excludedGroupIds.includes(group.id) &&
+    !draft.excludedTypeIds.includes(type.id)
+  ).length, 0);
+  $("#healthScopeTitle").textContent = meta.title;
+  $("#healthScopeSubtitle").textContent = meta.subtitle;
+  $("#healthScopeHint").textContent = groups.length
+    ? `已计入 ${selectedGroupCount} / ${groups.length} 个大类 · ${selectedTypeCount} 个小类 · ${meta.defaultText}`
+    : meta.emptyText;
+  $("#healthScopeManager").innerHTML = groups.length
+    ? groups.map((group) => {
+      const groupChecked = !draft.excludedGroupIds.includes(group.id);
+      return `
+        <section class="health-scope-group">
+          <label class="health-scope-group-toggle">
+            <input class="manager-checkbox" data-health-scope-group="${group.id}" type="checkbox" ${groupChecked ? "checked" : ""} />
+            <span class="health-scope-group-meta">
+              <b>${escapeHtml(group.name)}</b>
+              <small>${group.types.length} 个小类</small>
+            </span>
+          </label>
+          <div class="health-scope-types">
+            ${group.types.map((type) => {
+              const typeChecked = groupChecked && !draft.excludedTypeIds.includes(type.id);
+              return `
+                <label class="health-scope-chip ${groupChecked ? "" : "is-disabled"}">
+                  <input data-health-scope-type="${type.id}" data-health-scope-parent="${group.id}" type="checkbox" ${typeChecked ? "checked" : ""} ${groupChecked ? "" : "disabled"} />
+                  <span>${escapeHtml(type.name)}</span>
+                </label>
+              `;
+            }).join("")}
+          </div>
+        </section>
+      `;
+    }).join("")
+    : emptyHtml();
+}
+
+async function saveHealthScopeDraft() {
+  if (!healthScopeDraft) return true;
+  const config = healthConfig();
+  state.settings.healthConfig = {
+    ...config,
+    [activeHealthScopeKind]: normalizeHealthScope(healthScopeDraft, typeGroups(), { cardKey: activeHealthScopeKind }),
+  };
+  healthScopeDraftDirty = false;
+  saveState();
+  renderAnalysis();
+  if (activeHealthDetailKind === activeHealthScopeKind && !$("#healthDetailSheet").hidden) openHealthDetail(activeHealthDetailKind);
+  await closeSettingsSheet($("#healthScopeSheet"));
+  return true;
 }
 
 function renderAssetTreemap(total) {
@@ -2082,6 +2251,23 @@ function dateKey(year, month, day) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+function monthKeyFromDate(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function heatmapDayMonthWindow(year, month, count = 3) {
+  const end = new Date(Number(year), Number(month) - 1, 1);
+  return Array.from({ length: count }, (_, index) => {
+    const date = new Date(end.getFullYear(), end.getMonth() - (count - 1 - index), 1);
+    return monthKeyFromDate(date);
+  });
+}
+
+function heatmapRangeLabel(monthKeys) {
+  if (!monthKeys.length) return "";
+  return monthKeys[0] === monthKeys[monthKeys.length - 1] ? monthKeys[0] : `${monthKeys[0]} 至 ${monthKeys[monthKeys.length - 1]}`;
+}
+
 function heatmapLevel(value, maxValue) {
   if (!value || !maxValue) return 1;
   return Math.max(1, Math.min(5, Math.ceil((value / maxValue) * 5)));
@@ -2220,6 +2406,57 @@ function renderSnapshotHeatmap() {
 function renderSnapshotHeatmapByDay({ container, summary, year, month }) {
   const stats = snapshotHeatmapDailyStats();
   const byDate = Object.fromEntries(stats.map((stat) => [stat.date, stat]));
+  const visibleMonthKeys = heatmapDayMonthWindow(year, month, 3);
+  const visibleMonthSet = new Set(visibleMonthKeys);
+  const visibleEntries = stats.filter((stat) => visibleMonthSet.has(stat.date.slice(0, 7)));
+  const dayMetric = snapshotHeatmapMetricConfig();
+  const rangeLabel = heatmapRangeLabel(visibleMonthKeys);
+  if (!visibleEntries.length) {
+    summary.textContent = `${rangeLabel} · 暂无快照 · ${dayMetric.label}`;
+    container.innerHTML = `<div class="empty-state">该时间段暂无快照。</div>`;
+    return;
+  }
+  const maxVisibleValue = Math.max(...visibleEntries.map((stat) => heatmapMetricDensityValue(stat)), 1);
+  const mediumMonthKeys = visibleMonthKeys.slice(1);
+  const narrowMonthKeys = visibleMonthKeys.slice(2);
+  const countVisibleEntries = (monthKeys) => visibleEntries.filter((stat) => monthKeys.includes(stat.date.slice(0, 7))).length;
+  summary.innerHTML = `
+    <span class="heatmap-day-summary-wide">${escapeHtml(rangeLabel)} · ${visibleEntries.length} 个日期有快照 · ${escapeHtml(dayMetric.label)}</span>
+    <span class="heatmap-day-summary-medium">${escapeHtml(heatmapRangeLabel(mediumMonthKeys))} · ${countVisibleEntries(mediumMonthKeys)} 个日期有快照 · ${escapeHtml(dayMetric.label)}</span>
+    <span class="heatmap-day-summary-narrow">${escapeHtml(heatmapRangeLabel(narrowMonthKeys))} · ${countVisibleEntries(narrowMonthKeys)} 个日期有快照 · ${escapeHtml(dayMetric.label)}</span>
+  `;
+  const monthsHtml = visibleMonthKeys.map((monthKey, index) => {
+    const [monthYear, monthNumber] = monthKey.split("-");
+    const dayCount = new Date(Number(monthYear), Number(monthNumber), 0).getDate();
+    const firstDay = new Date(Number(monthYear), Number(monthNumber) - 1, 1).getDay();
+    const cells = [
+      ...Array.from({ length: firstDay }, () => `<span class="heatmap-cell is-empty"></span>`),
+      ...Array.from({ length: dayCount }, (_, dayIndex) => {
+        const day = dayIndex + 1;
+        const date = dateKey(monthYear, Number(monthNumber), day);
+        const stat = byDate[date];
+        const value = heatmapMetricDensityValue(stat);
+        const level = stat ? heatmapLevel(value || 1, maxVisibleValue) : 0;
+        const title = stat
+          ? `${date} · ${dayMetric.valueLabel} ${dayMetric.format(heatmapMetricRawValue(stat)).replace(/<[^>]+>/g, "")}`
+          : `${date} · 无快照`;
+        return `<span class="heatmap-cell ${stat ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${day}</span>`;
+      }),
+    ].join("");
+    const responsiveClass = index === 0 ? " is-wide-only" : index === 1 ? " is-medium-only" : "";
+    return `
+      <section class="heatmap-month heatmap-day-month${responsiveClass}">
+        <h3>${Number(monthNumber)}月</h3>
+        <div class="heatmap-weekdays" aria-hidden="true"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
+        <div class="heatmap-days">${cells}</div>
+      </section>
+    `;
+  }).join("");
+  container.innerHTML = `
+    ${heatmapLegendHtml(dayMetric.legend)}
+    <div class="heatmap-day-months">${monthsHtml}</div>
+  `;
+  return;
   const monthPrefix = `${year}-${month}`;
   const entries = stats.filter((stat) => stat.date.startsWith(monthPrefix));
   if (!entries.length) {
@@ -2288,7 +2525,6 @@ function renderSnapshotHeatmapByMonth({ container, summary, year }) {
         `;
       }).join("")}
     </div>
-    ${heatmapDetailPanelHtml(activeMonths.slice().sort((a, b) => heatmapMetricDensityValue(b) - heatmapMetricDensityValue(a)), "月份摘要")}
   `;
 }
 
@@ -3772,6 +4008,7 @@ function normalizeJsonImportData(imported) {
     });
   }
   data.settings.accountTypeGroups = normalizeTypeGroups(data.settings.accountTypeGroups);
+  data.settings.healthConfig = normalizeHealthConfig(data.settings.healthConfig, data.settings.accountTypeGroups);
   const baseCurrency = String(data.settings.baseCurrency || defaultState.settings.baseCurrency).trim().toUpperCase();
 
   const usedIds = new Set();
@@ -3935,6 +4172,7 @@ function importJsonContent(content, normalizedData = null) {
   validateJsonImportData(imported);
   const importedSettings = { ...defaultState.settings, ...(imported.settings || {}) };
   importedSettings.accountTypeGroups = normalizeTypeGroups(importedSettings.accountTypeGroups);
+  importedSettings.healthConfig = normalizeHealthConfig(importedSettings.healthConfig, importedSettings.accountTypeGroups);
   const importedSnapshots = imported.snapshots.map(normalizeSnapshot);
   importedSettings.snapshotTags = normalizeSnapshotTagSettings(importedSettings.snapshotTags, importedSnapshots);
   Object.assign(importedSettings, normalizeCurrencySettings(importedSettings, imported.accounts, defaultState.settings));
@@ -4518,6 +4756,10 @@ function bindEvents() {
     if (!card) return;
     openHealthDetail(card.dataset.healthDetail);
   });
+  $("#configureHealthDetail").addEventListener("click", () => {
+    activeHealthScopeKind = activeHealthDetailKind || "liability";
+    openSettingsSheet("healthScopeSheet");
+  });
   $("#closeHealthDetail").addEventListener("click", closeHealthDetailSheet);
   $("#healthDetailSheet").addEventListener("click", (event) => {
     if (event.target === event.currentTarget) closeHealthDetailSheet();
@@ -4754,7 +4996,7 @@ function bindEvents() {
   });
   $("#openFeatureIntro").addEventListener("click", () => {
     alertDialog(
-      "资产快照本用于手动记录各账户在某一天的余额，帮助你查看净值、资产、负债和分组变化。\n\n当前支持账户管理、余额快照、历史快照、标签备注、本地备份导入，以及基础货币和汇率设置。\n\n所有数据保存在本机浏览器中，建议定期导出 JSON 备份。",
+      `资产快照本用于手动记录各账户在某一天的余额，帮助你查看净值、资产、负债和分组变化。\n\n当前支持账户管理、余额快照、历史快照、标签备注、本地备份导入，以及基础货币和汇率设置。\n\n所有数据保存在本机浏览器中，建议定期导出 JSON 备份。\n\n当前版本：${APP_VERSION}`,
       { title: "功能介绍" }
     );
   });
@@ -4967,6 +5209,38 @@ function bindEvents() {
     syncTypeDraftFromInputs();
     typeDraftDirty = true;
   });
+  $("#healthScopeManager").addEventListener("change", (event) => {
+    if (!healthScopeDraft) return;
+    const groupCheckbox = event.target.closest("[data-health-scope-group]");
+    if (groupCheckbox) {
+      const groupId = groupCheckbox.dataset.healthScopeGroup;
+      const group = typeGroups().find((item) => item.id === groupId);
+      if (!group) return;
+      if (groupCheckbox.checked) {
+        healthScopeDraft.excludedGroupIds = healthScopeDraft.excludedGroupIds.filter((item) => item !== groupId);
+        healthScopeDraft.excludedTypeIds = healthScopeDraft.excludedTypeIds.filter((item) => !group.types.some((type) => type.id === item));
+      } else {
+        if (!healthScopeDraft.excludedGroupIds.includes(groupId)) healthScopeDraft.excludedGroupIds.push(groupId);
+        healthScopeDraft.excludedTypeIds = [...new Set([
+          ...healthScopeDraft.excludedTypeIds,
+          ...group.types.map((type) => type.id),
+        ])];
+      }
+      healthScopeDraftDirty = true;
+      renderHealthScopeManager();
+      return;
+    }
+    const typeCheckbox = event.target.closest("[data-health-scope-type]");
+    if (!typeCheckbox) return;
+    const typeId = typeCheckbox.dataset.healthScopeType;
+    if (typeCheckbox.checked) {
+      healthScopeDraft.excludedTypeIds = healthScopeDraft.excludedTypeIds.filter((item) => item !== typeId);
+    } else if (!healthScopeDraft.excludedTypeIds.includes(typeId)) {
+      healthScopeDraft.excludedTypeIds.push(typeId);
+    }
+    healthScopeDraftDirty = true;
+    renderHealthScopeManager();
+  });
   $("#snapshotTagManager").addEventListener("input", () => {
     syncTagDraftFromInputs();
     tagDraftDirty = true;
@@ -5098,6 +5372,18 @@ function bindEvents() {
     selectedTagNames.clear();
     renderTagManager();
   });
+  $("#selectAllHealthScope").addEventListener("click", () => {
+    healthScopeDraft = { scopeVersion: 2, excludedGroupIds: [], excludedTypeIds: [] };
+    healthScopeDraftDirty = true;
+    renderHealthScopeManager();
+  });
+  $("#resetHealthScope").addEventListener("click", () => {
+    healthScopeDraft = defaultHealthScopeForCard(activeHealthScopeKind, typeGroups());
+    healthScopeDraftDirty = true;
+    renderHealthScopeManager();
+  });
+  $("#saveHealthScope").addEventListener("click", saveHealthScopeDraft);
+  $("#discardHealthScope").addEventListener("click", () => closeSettingsSheet($("#healthScopeSheet")));
   $("#snapshotTagManager").addEventListener("change", (event) => {
     const checkbox = event.target.closest("[data-select-tag]");
     if (!checkbox) return;
@@ -5560,6 +5846,12 @@ function openSettingsSheet(sheetId) {
     selectedTypeIds.clear();
     renderTypeManager();
   }
+  if (sheetId === "healthScopeSheet") {
+    const config = healthConfig();
+    healthScopeDraft = structuredClone(config[activeHealthScopeKind] || defaultHealthScopeForCard(activeHealthScopeKind, typeGroups()));
+    healthScopeDraftDirty = false;
+    renderHealthScopeManager();
+  }
   if (sheetId === "tagSettingsSheet") {
     tagDraft = normalizeSnapshotTagSettings(state.settings.snapshotTags, state.snapshots);
     tagDraftDirty = false;
@@ -5582,6 +5874,14 @@ async function closeSettingsSheet(sheet) {
     });
     if (saveChanges && !(await saveTypeDraft())) return;
   }
+  if (sheet.id === "healthScopeSheet" && healthScopeDraftDirty) {
+    const saveChanges = await confirmDialog("资产健康口径还有未保存的修改。\n\n点击“确定”保存配置；点击“取消”放弃修改并退出。", {
+      title: "保存资产健康口径修改",
+      confirmText: "保存配置",
+      cancelText: "放弃修改",
+    });
+    if (saveChanges && !(await saveHealthScopeDraft())) return;
+  }
   if (sheet.id === "tagSettingsSheet" && tagDraftDirty) {
     syncTagDraftFromInputs();
     const saveChanges = await confirmDialog("快照标签还有未保存的修改。\n\n点击“确定”保存修改；点击“取消”放弃修改并退出。", {
@@ -5597,6 +5897,10 @@ async function closeSettingsSheet(sheet) {
     typeManageMode = false;
     selectedTypeGroupIds.clear();
     selectedTypeIds.clear();
+  }
+  if (sheet.id === "healthScopeSheet") {
+    healthScopeDraft = null;
+    healthScopeDraftDirty = false;
   }
   if (sheet.id === "currencySettingsSheet") {
     currencyManageMode = false;
@@ -5632,6 +5936,7 @@ async function saveTypeDraft() {
     return false;
   }
   state.settings.accountTypeGroups = structuredClone(typeDraft);
+  state.settings.healthConfig = normalizeHealthConfig(state.settings.healthConfig, state.settings.accountTypeGroups);
   typeDraftDirty = false;
   saveState();
   renderAll();

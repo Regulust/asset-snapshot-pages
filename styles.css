@@ -598,6 +598,12 @@ textarea {
   margin-bottom: 22px;
 }
 
+.sheet-heading-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .sheet-close {
   flex: 0 0 auto;
   width: 36px;
@@ -2064,6 +2070,11 @@ textarea {
   margin: 0;
 }
 
+.heatmap-day-summary-medium,
+.heatmap-day-summary-narrow {
+  display: none;
+}
+
 .heatmap-legend {
   display: inline-flex;
   align-items: center;
@@ -2092,6 +2103,19 @@ textarea {
 }
 
 .heatmap-month-single {
+  width: min(100%, 250px);
+}
+
+.heatmap-day-months {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 250px));
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.heatmap-day-month {
+  justify-self: center;
   width: min(100%, 250px);
 }
 
@@ -2167,15 +2191,15 @@ textarea {
 .heatmap-month-summary-grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 6px;
+  gap: 5px;
 }
 
 .heatmap-month-summary {
   display: grid;
-  gap: 3px;
+  gap: 2px;
   min-width: 0;
-  min-height: 46px;
-  padding: 7px 8px;
+  min-height: 40px;
+  padding: 6px 7px;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #edf1f7;
@@ -2198,12 +2222,15 @@ textarea {
 }
 
 .heatmap-month-summary b {
-  font-size: 12px;
+  font-size: 11px;
   line-height: 1;
 }
 
 .heatmap-month-summary span {
-  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
   font-weight: 700;
 }
 
@@ -2714,6 +2741,85 @@ textarea {
 .health-detail-list {
   display: grid;
   gap: 8px;
+}
+
+.health-scope-list {
+  display: grid;
+  gap: 12px;
+}
+
+.health-scope-group {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcff;
+}
+
+.health-scope-group-toggle {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+}
+
+.health-scope-group-toggle input,
+.health-scope-chip input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  flex: 0 0 16px;
+  accent-color: var(--blue);
+}
+
+.health-scope-group-meta {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.health-scope-group-meta b {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.health-scope-group-meta small,
+.health-scope-chip span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.health-scope-types {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px;
+}
+
+.health-scope-chip {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.health-scope-chip.is-disabled {
+  border-color: #e5e9f2;
+  background: #f7f9fc;
+  opacity: 0.72;
+}
+
+.health-scope-chip span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .health-detail-row {
@@ -3365,10 +3471,6 @@ textarea {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .heatmap-month-summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
   .heatmap-controls,
   .heatmap-legend {
     justify-self: start;
@@ -3541,8 +3643,49 @@ textarea {
     grid-template-columns: 1fr;
   }
 
+}
+
+@media (max-width: 900px) {
+  .heatmap-day-summary-wide {
+    display: none;
+  }
+
+  .heatmap-day-summary-medium {
+    display: inline;
+  }
+
+  .heatmap-day-months {
+    grid-template-columns: repeat(2, minmax(0, 250px));
+  }
+
+  .heatmap-day-month.is-wide-only {
+    display: none;
+  }
+
   .heatmap-month-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .heatmap-day-summary-medium {
+    display: none;
+  }
+
+  .heatmap-day-summary-narrow {
+    display: inline;
+  }
+
+  .heatmap-day-months {
+    grid-template-columns: minmax(0, 250px);
+  }
+
+  .heatmap-day-month.is-medium-only {
+    display: none;
+  }
+
+  .heatmap-month-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
