@@ -7,7 +7,7 @@
     <meta name="description" content="本地资产余额快照记账 PWA" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=133" />
+    <link rel="stylesheet" href="./styles.css?v=134" />
     <title>资产快照本</title>
   </head>
   <body>
@@ -316,6 +316,7 @@
               <h2>资产健康</h2>
               <span>按最新快照计算</span>
             </div>
+            <button class="secondary-button small" id="addCustomHealthCard" type="button">新增占比卡</button>
           </div>
           <div id="healthCards" class="health-grid"></div>
         </section>
@@ -351,6 +352,25 @@
                 <button class="secondary-button small" id="selectAllHealthScope" type="button">全选</button>
                 <button class="secondary-button small" id="resetHealthScope" type="button">恢复默认</button>
               </div>
+            </div>
+            <div class="custom-health-form" id="customHealthForm" hidden>
+              <label class="control-field">
+                <span>卡片名称</span>
+                <input class="text-input" id="customHealthName" type="text" maxlength="16" placeholder="例如：现金安全垫" />
+              </label>
+              <label class="control-field">
+                <span>分母口径</span>
+                <select class="control-select" id="customHealthDenominator">
+                  <option value="assets">总资产</option>
+                  <option value="net">净资产</option>
+                  <option value="custom">指定类型集合</option>
+                </select>
+              </label>
+              <div class="custom-health-scope-tabs" id="customHealthScopeTabs" hidden>
+                <button class="secondary-button small active" data-custom-health-scope-part="numerator" type="button">分子范围</button>
+                <button class="secondary-button small" data-custom-health-scope-part="denominator" type="button">分母范围</button>
+              </div>
+              <button class="secondary-button danger small" id="deleteCustomHealthCard" type="button">删除此卡</button>
             </div>
             <div id="healthScopeManager" class="health-scope-list"></div>
             <div class="type-editor-actions">
@@ -733,6 +753,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=133" defer></script>
+    <script src="./app.js?v=134" defer></script>
   </body>
 </html>

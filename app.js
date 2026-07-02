@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v133";
+const APP_VERSION = "v134";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -48,6 +48,12 @@ const DEFAULT_SNAPSHOT_TAGS = [
 ];
 
 const HEALTH_CARD_KEYS = ["liability", "cash", "investment", "account-concentration", "group-concentration"];
+const CUSTOM_HEALTH_CARD_PREFIX = "custom:";
+const HEALTH_CUSTOM_DENOMINATORS = [
+  { value: "assets", label: "总资产" },
+  { value: "net", label: "净资产" },
+  { value: "custom", label: "指定类型集合" },
+];
 
 const HEALTH_CARD_META = {
   liability: {
@@ -93,6 +99,7 @@ const defaultState = {
     privacy: false,
     accountTypeGroups: structuredClone(DEFAULT_ACCOUNT_TYPE_GROUPS),
     healthConfig: structuredClone(DEFAULT_HEALTH_CONFIG),
+    healthCustomCards: [],
     accountGroupOrder: [],
     snapshotTags: DEFAULT_SNAPSHOT_TAGS,
     deletedCurrencyCodes: [],
@@ -156,6 +163,8 @@ let healthScopeDraft = null;
 let healthScopeDraftDirty = false;
 let activeHealthDetailKind = null;
 let activeHealthScopeKind = "liability";
+let customHealthDraft = null;
+let activeCustomHealthScopePart = "numerator";
 let tagDraft = null;
 let tagDraftDirty = false;
 let tagManageMode = false;
@@ -315,6 +324,7 @@ function loadState() {
     ])].filter((code) => [...currencies, ...settings.customCurrencies].some((item) => item.code === code) && !settings.deletedCurrencyCodes.includes(code));
     settings.accountTypeGroups = normalizeTypeGroups(settings.accountTypeGroups);
     settings.healthConfig = normalizeHealthConfig(settings.healthConfig, settings.accountTypeGroups);
+    settings.healthCustomCards = normalizeHealthCustomCards(settings.healthCustomCards, settings.accountTypeGroups);
     settings.snapshotTags = normalizeSnapshotTagSettings(settings.snapshotTags);
     const needsArchiveMigration = !parsed.settings?.archiveMergeVersion;
     const accounts = (parsed.accounts || []).map((account) => normalizeAccount(account, settings.accountTypeGroups, needsArchiveMigration));
@@ -383,6 +393,14 @@ function defaultHealthScopeForCard(cardKey, groups = DEFAULT_ACCOUNT_TYPE_GROUPS
   };
 }
 
+function isCustomHealthCardKey(cardKey) {
+  return String(cardKey || "").startsWith(CUSTOM_HEALTH_CARD_PREFIX);
+}
+
+function customHealthCardId(cardKey) {
+  return isCustomHealthCardKey(cardKey) ? String(cardKey).slice(CUSTOM_HEALTH_CARD_PREFIX.length) : "";
+}
+
 function normalizeHealthScope(scope, groups, { cardKey = "liability" } = {}) {
   const source = scope && typeof scope === "object" && !Array.isArray(scope) ? scope : {};
   const validGroupIds = new Set(groups.map((group) => group.id));
@@ -410,6 +428,30 @@ function normalizeHealthScope(scope, groups, { cardKey = "liability" } = {}) {
   };
 }
 
+function normalizeHealthCustomCards(cards, groups = DEFAULT_ACCOUNT_TYPE_GROUPS) {
+  if (!Array.isArray(cards)) return [];
+  const seen = new Set();
+  return cards
+    .map((card) => {
+      const source = card && typeof card === "object" && !Array.isArray(card) ? card : {};
+      const idValue = String(source.id || id()).trim();
+      if (!idValue || seen.has(idValue)) return null;
+      seen.add(idValue);
+      const denominatorMode = HEALTH_CUSTOM_DENOMINATORS.some((item) => item.value === source.denominatorMode)
+        ? source.denominatorMode
+        : "assets";
+      return {
+        id: idValue,
+        name: String(source.name || "自定义占比").trim() || "自定义占比",
+        denominatorMode,
+        numeratorScope: normalizeHealthScope(source.numeratorScope || source.scope, groups, { cardKey: "custom" }),
+        denominatorScope: normalizeHealthScope(source.denominatorScope, groups, { cardKey: "custom" }),
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+}
+
 function normalizeHealthConfig(config, groups = DEFAULT_ACCOUNT_TYPE_GROUPS) {
   const source = config && typeof config === "object" && !Array.isArray(config) ? config : {};
   return Object.fromEntries(HEALTH_CARD_KEYS.map((cardKey) => [
@@ -420,6 +462,10 @@ function normalizeHealthConfig(config, groups = DEFAULT_ACCOUNT_TYPE_GROUPS) {
 
 function healthConfig(groups = typeGroups()) {
   return normalizeHealthConfig(state.settings.healthConfig, groups);
+}
+
+function healthCustomCards(groups = typeGroups()) {
+  return normalizeHealthCustomCards(state.settings.healthCustomCards, groups);
 }
 
 function defaultHealthConfig(groups = DEFAULT_ACCOUNT_TYPE_GROUPS) {
@@ -1045,9 +1091,48 @@ function healthMetricValues(total) {
   };
 }
 
+function customHealthCardKey(card) {
+  return `${CUSTOM_HEALTH_CARD_PREFIX}${card.id}`;
+}
+
+function customHealthCardByKey(cardKey) {
+  const customId = customHealthCardId(cardKey);
+  return healthCustomCards().find((card) => card.id === customId) || null;
+}
+
+function positiveScopedRows(total, scope) {
+  const groups = typeGroups();
+  return (total.accounts || [])
+    .filter((row) =>
+      row.account.includeInNetWorth !== false &&
+      row.converted > 0 &&
+      accountMatchesHealthScope(row.account, scope, groups)
+    );
+}
+
+function customHealthCardMetric(total, card) {
+  const numeratorRows = positiveScopedRows(total, card.numeratorScope);
+  const numerator = numeratorRows.reduce((sum, row) => sum + row.converted, 0);
+  let denominator = Math.max(total.assets || 0, 0);
+  if (card.denominatorMode === "net") denominator = Math.max(total.net || 0, 0);
+  if (card.denominatorMode === "custom") {
+    denominator = positiveScopedRows(total, card.denominatorScope).reduce((sum, row) => sum + row.converted, 0);
+  }
+  return {
+    numerator,
+    denominator,
+    ratio: denominator ? numerator / denominator : 0,
+    rows: numeratorRows,
+  };
+}
+
+function customHealthDenominatorLabel(card) {
+  return HEALTH_CUSTOM_DENOMINATORS.find((item) => item.value === card.denominatorMode)?.label || "总资产";
+}
+
 function analysisHealthCards(total) {
   const metrics = healthMetricValues(total);
-  return [
+  const fixedCards = [
     { key: "liability", label: "\u8d1f\u503a\u7387", value: percentText(metrics.liabilityRatio), hint: "\u8d1f\u503a / \u8d44\u4ea7" },
     { key: "cash", label: "\u6d41\u52a8\u5360\u6bd4", value: percentText(metrics.cashRatio), hint: "\u73b0\u91d1/\u6d41\u52a8\u5927\u7c7b / \u8d44\u4ea7" },
     { key: "investment", label: "\u6295\u8d44\u5360\u6bd4", value: percentText(metrics.investmentRatio), hint: "\u6295\u8d44\u589e\u503c\u5927\u7c7b / \u8d44\u4ea7" },
@@ -1064,12 +1149,22 @@ function analysisHealthCards(total) {
       hint: metrics.maxGroup ? metrics.maxGroup[0] : "\u6682\u65e0\u8d44\u4ea7\u5206\u7ec4",
     },
   ];
+  const customCards = healthCustomCards().map((card) => {
+    const metric = customHealthCardMetric(total, card);
+    return {
+      key: customHealthCardKey(card),
+      label: card.name,
+      value: percentText(metric.ratio),
+      hint: `自定义 / ${customHealthDenominatorLabel(card)}`,
+    };
+  });
+  return [...fixedCards, ...customCards];
 }
 
 function healthCardsHtml(total, { interactive = true } = {}) {
   const tag = interactive ? "button" : "article";
   return analysisHealthCards(total).map((card) => `
-    <${tag} class="health-card"${interactive ? ` data-health-detail="${card.key}" type="button"` : ""}>
+    <${tag} class="health-card ${isCustomHealthCardKey(card.key) ? "is-custom" : ""}"${interactive ? ` data-health-detail="${card.key}" type="button"` : ""}>
       <span>${escapeHtml(card.label)}</span>
       <b>${escapeHtml(card.value)}</b>
       <small>${escapeHtml(card.hint)}</small>
@@ -1274,7 +1369,7 @@ function openHealthDetail(kind) {
   $("#healthDetailTitle").textContent = detail.title;
   $("#healthDetailSubtitle").textContent = detail.subtitle;
   const configureButton = $("#configureHealthDetail");
-  configureButton.hidden = !HEALTH_CARD_KEYS.includes(kind);
+  configureButton.hidden = !(HEALTH_CARD_KEYS.includes(kind) || isCustomHealthCardKey(kind));
   configureButton.textContent = "配置口径";
   $("#healthDetailContent").innerHTML = detail.rows.length
     ? detail.rows.map((row, index) => `
@@ -1304,6 +1399,25 @@ function closeHealthDetailSheet() {
 
 function healthDetailData(kind, total) {
   const assets = Math.max(total.assets || 0, 0);
+  if (isCustomHealthCardKey(kind)) {
+    const card = customHealthCardByKey(kind);
+    if (!card) {
+      return { title: "自定义占比明细", subtitle: "自定义卡已不存在", rows: [] };
+    }
+    const metric = customHealthCardMetric(total, card);
+    const rows = metric.rows
+      .sort((a, b) => b.converted - a.converted)
+      .map((row) => ({
+        label: row.account.name,
+        hint: typeLabel(row.account.type),
+        value: row.converted,
+      }));
+    return {
+      title: `${card.name}明细`,
+      subtitle: `分子账户占${customHealthDenominatorLabel(card)}比例`,
+      rows: rows.map((row) => ({ ...row, share: metric.denominator ? row.value / metric.denominator : 0 })),
+    };
+  }
   const assetRows = healthScopedRows(total, kind)
     .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0)
     .sort((a, b) => b.converted - a.converted);
@@ -1387,13 +1501,23 @@ function healthDetailData(kind, total) {
   };
 }
 
-function accountInHealthScope(account, cardKey, groups = typeGroups(), config = healthConfig(groups)) {
+function accountMatchesHealthScope(account, scope, groups = typeGroups()) {
   const group = groups.find((item) => item.types.some((type) => type.id === account.type));
   if (!group) return false;
-  const scope = config[cardKey] || defaultHealthScopeForCard(cardKey, groups);
   if ((scope.excludedGroupIds || []).includes(group.id)) return false;
   if ((scope.excludedTypeIds || []).includes(account.type)) return false;
   return true;
+}
+
+function resolvedHealthScope(cardKey, groups = typeGroups(), config = healthConfig(groups)) {
+  if (isCustomHealthCardKey(cardKey)) {
+    return customHealthCardByKey(cardKey)?.numeratorScope || defaultHealthScopeForCard("custom", groups);
+  }
+  return config[cardKey] || defaultHealthScopeForCard(cardKey, groups);
+}
+
+function accountInHealthScope(account, cardKey, groups = typeGroups(), config = healthConfig(groups)) {
+  return accountMatchesHealthScope(account, resolvedHealthScope(cardKey, groups, config), groups);
 }
 
 function healthScopedRows(total, cardKey) {
@@ -1411,7 +1535,39 @@ function healthScopedGroupEntries(rows) {
   return Object.entries(grouped).filter(([, value]) => value > 0);
 }
 
+function activeCustomHealthCard() {
+  return customHealthCardByKey(activeHealthScopeKind);
+}
+
+function activeHealthScopeDraft() {
+  if (isCustomHealthCardKey(activeHealthScopeKind) && customHealthDraft) {
+    return activeCustomHealthScopePart === "denominator"
+      ? customHealthDraft.denominatorScope
+      : customHealthDraft.numeratorScope;
+  }
+  return healthScopeDraft;
+}
+
+function setActiveHealthScopeDraft(scope) {
+  if (isCustomHealthCardKey(activeHealthScopeKind) && customHealthDraft) {
+    if (activeCustomHealthScopePart === "denominator") customHealthDraft.denominatorScope = scope;
+    else customHealthDraft.numeratorScope = scope;
+    return;
+  }
+  healthScopeDraft = scope;
+}
+
 function activeHealthScopeMeta(kind = activeHealthScopeKind) {
+  if (isCustomHealthCardKey(kind)) {
+    const name = customHealthDraft?.name || activeCustomHealthCard()?.name || "自定义占比";
+    const isDenominator = activeCustomHealthScopePart === "denominator";
+    return {
+      title: `${name}配置`,
+      subtitle: isDenominator ? "勾选要计入分母的账户类型" : "勾选要计入分子的账户类型",
+      emptyText: "暂无可配置的账户类型",
+      defaultText: isDenominator ? "当前编辑分母范围" : "当前编辑分子范围",
+    };
+  }
   const meta = HEALTH_CARD_META[kind] || HEALTH_CARD_META.liability;
   return {
     title: meta.title,
@@ -1424,7 +1580,21 @@ function activeHealthScopeMeta(kind = activeHealthScopeKind) {
 function renderHealthScopeManager() {
   const groups = typeGroups();
   const meta = activeHealthScopeMeta();
-  const draft = healthScopeDraft || structuredClone(healthConfig().liability);
+  const isCustom = isCustomHealthCardKey(activeHealthScopeKind);
+  const draft = activeHealthScopeDraft() || structuredClone(healthConfig().liability);
+  const customForm = $("#customHealthForm");
+  if (customForm) {
+    customForm.hidden = !isCustom;
+    if (isCustom && customHealthDraft) {
+      $("#customHealthName").value = customHealthDraft.name;
+      $("#customHealthDenominator").value = customHealthDraft.denominatorMode;
+      $("#customHealthScopeTabs").hidden = customHealthDraft.denominatorMode !== "custom";
+      $$("[data-custom-health-scope-part]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.customHealthScopePart === activeCustomHealthScopePart);
+      });
+      $("#deleteCustomHealthCard").hidden = !activeCustomHealthCard();
+    }
+  }
   const selectedGroupCount = groups.filter((group) => !draft.excludedGroupIds.includes(group.id)).length;
   const selectedTypeCount = groups.reduce((sum, group) => sum + group.types.filter((type) =>
     !draft.excludedGroupIds.includes(group.id) &&
@@ -1465,6 +1635,29 @@ function renderHealthScopeManager() {
 }
 
 async function saveHealthScopeDraft() {
+  if (isCustomHealthCardKey(activeHealthScopeKind)) {
+    if (!customHealthDraft) return true;
+    customHealthDraft.name = String($("#customHealthName")?.value || customHealthDraft.name || "").trim();
+    customHealthDraft.denominatorMode = $("#customHealthDenominator")?.value || customHealthDraft.denominatorMode || "assets";
+    if (!customHealthDraft.name) {
+      await alertDialog("自定义占比卡名称不能为空。");
+      return false;
+    }
+    const normalized = normalizeHealthCustomCards([customHealthDraft], typeGroups())[0];
+    if (!normalized) return false;
+    const cards = healthCustomCards();
+    const existingIndex = cards.findIndex((card) => card.id === normalized.id);
+    state.settings.healthCustomCards = existingIndex >= 0
+      ? cards.map((card) => card.id === normalized.id ? normalized : card)
+      : [...cards, normalized];
+    healthScopeDraftDirty = false;
+    customHealthDraft = null;
+    saveState();
+    renderAnalysis();
+    if (activeHealthDetailKind === activeHealthScopeKind && !$("#healthDetailSheet").hidden) openHealthDetail(activeHealthDetailKind);
+    await closeSettingsSheet($("#healthScopeSheet"));
+    return true;
+  }
   if (!healthScopeDraft) return true;
   const config = healthConfig();
   state.settings.healthConfig = {
@@ -3983,6 +4176,7 @@ function normalizeJsonImportData(imported) {
   }
   data.settings.accountTypeGroups = normalizeTypeGroups(data.settings.accountTypeGroups);
   data.settings.healthConfig = normalizeHealthConfig(data.settings.healthConfig, data.settings.accountTypeGroups);
+  data.settings.healthCustomCards = normalizeHealthCustomCards(data.settings.healthCustomCards, data.settings.accountTypeGroups);
   const baseCurrency = String(data.settings.baseCurrency || defaultState.settings.baseCurrency).trim().toUpperCase();
 
   const usedIds = new Set();
@@ -4147,6 +4341,7 @@ function importJsonContent(content, normalizedData = null) {
   const importedSettings = { ...defaultState.settings, ...(imported.settings || {}) };
   importedSettings.accountTypeGroups = normalizeTypeGroups(importedSettings.accountTypeGroups);
   importedSettings.healthConfig = normalizeHealthConfig(importedSettings.healthConfig, importedSettings.accountTypeGroups);
+  importedSettings.healthCustomCards = normalizeHealthCustomCards(importedSettings.healthCustomCards, importedSettings.accountTypeGroups);
   const importedSnapshots = imported.snapshots.map(normalizeSnapshot);
   importedSettings.snapshotTags = normalizeSnapshotTagSettings(importedSettings.snapshotTags, importedSnapshots);
   Object.assign(importedSettings, normalizeCurrencySettings(importedSettings, imported.accounts, defaultState.settings));
@@ -4753,6 +4948,12 @@ function bindEvents() {
     activeHealthScopeKind = activeHealthDetailKind || "liability";
     openSettingsSheet("healthScopeSheet");
   });
+  $("#addCustomHealthCard").addEventListener("click", () => {
+    const newId = id();
+    activeHealthScopeKind = `${CUSTOM_HEALTH_CARD_PREFIX}${newId}`;
+    activeHealthDetailKind = activeHealthScopeKind;
+    openSettingsSheet("healthScopeSheet");
+  });
   $("#closeHealthDetail").addEventListener("click", closeHealthDetailSheet);
   $("#healthDetailSheet").addEventListener("click", (event) => {
     if (event.target === event.currentTarget) closeHealthDetailSheet();
@@ -5203,19 +5404,20 @@ function bindEvents() {
     typeDraftDirty = true;
   });
   $("#healthScopeManager").addEventListener("change", (event) => {
-    if (!healthScopeDraft) return;
+    let draft = activeHealthScopeDraft();
+    if (!draft) return;
     const groupCheckbox = event.target.closest("[data-health-scope-group]");
     if (groupCheckbox) {
       const groupId = groupCheckbox.dataset.healthScopeGroup;
       const group = typeGroups().find((item) => item.id === groupId);
       if (!group) return;
       if (groupCheckbox.checked) {
-        healthScopeDraft.excludedGroupIds = healthScopeDraft.excludedGroupIds.filter((item) => item !== groupId);
-        healthScopeDraft.excludedTypeIds = healthScopeDraft.excludedTypeIds.filter((item) => !group.types.some((type) => type.id === item));
+        draft.excludedGroupIds = draft.excludedGroupIds.filter((item) => item !== groupId);
+        draft.excludedTypeIds = draft.excludedTypeIds.filter((item) => !group.types.some((type) => type.id === item));
       } else {
-        if (!healthScopeDraft.excludedGroupIds.includes(groupId)) healthScopeDraft.excludedGroupIds.push(groupId);
-        healthScopeDraft.excludedTypeIds = [...new Set([
-          ...healthScopeDraft.excludedTypeIds,
+        if (!draft.excludedGroupIds.includes(groupId)) draft.excludedGroupIds.push(groupId);
+        draft.excludedTypeIds = [...new Set([
+          ...draft.excludedTypeIds,
           ...group.types.map((type) => type.id),
         ])];
       }
@@ -5227,12 +5429,50 @@ function bindEvents() {
     if (!typeCheckbox) return;
     const typeId = typeCheckbox.dataset.healthScopeType;
     if (typeCheckbox.checked) {
-      healthScopeDraft.excludedTypeIds = healthScopeDraft.excludedTypeIds.filter((item) => item !== typeId);
-    } else if (!healthScopeDraft.excludedTypeIds.includes(typeId)) {
-      healthScopeDraft.excludedTypeIds.push(typeId);
+      draft.excludedTypeIds = draft.excludedTypeIds.filter((item) => item !== typeId);
+    } else if (!draft.excludedTypeIds.includes(typeId)) {
+      draft.excludedTypeIds.push(typeId);
     }
     healthScopeDraftDirty = true;
     renderHealthScopeManager();
+  });
+  $("#customHealthName").addEventListener("input", (event) => {
+    if (!customHealthDraft) return;
+    customHealthDraft.name = event.target.value;
+    healthScopeDraftDirty = true;
+    renderHealthScopeManager();
+  });
+  $("#customHealthDenominator").addEventListener("change", (event) => {
+    if (!customHealthDraft) return;
+    customHealthDraft.denominatorMode = event.target.value;
+    if (customHealthDraft.denominatorMode !== "custom") activeCustomHealthScopePart = "numerator";
+    healthScopeDraftDirty = true;
+    renderHealthScopeManager();
+  });
+  $("#customHealthScopeTabs").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-custom-health-scope-part]");
+    if (!button || !customHealthDraft) return;
+    activeCustomHealthScopePart = button.dataset.customHealthScopePart === "denominator" ? "denominator" : "numerator";
+    renderHealthScopeManager();
+  });
+  $("#deleteCustomHealthCard").addEventListener("click", async () => {
+    const card = activeCustomHealthCard();
+    if (!card) return;
+    const ok = await confirmDialog(`确定删除自定义占比卡“${card.name}”吗？`, {
+      title: "删除自定义占比卡",
+      confirmText: "删除",
+      variant: "danger",
+    });
+    if (!ok) return;
+    state.settings.healthCustomCards = healthCustomCards().filter((item) => item.id !== card.id);
+    activeHealthDetailKind = null;
+    activeHealthScopeKind = "liability";
+    customHealthDraft = null;
+    healthScopeDraftDirty = false;
+    saveState();
+    renderAnalysis();
+    $("#healthDetailSheet").hidden = true;
+    await closeSettingsSheet($("#healthScopeSheet"));
   });
   $("#snapshotTagManager").addEventListener("input", () => {
     syncTagDraftFromInputs();
@@ -5366,12 +5606,12 @@ function bindEvents() {
     renderTagManager();
   });
   $("#selectAllHealthScope").addEventListener("click", () => {
-    healthScopeDraft = { scopeVersion: 2, excludedGroupIds: [], excludedTypeIds: [] };
+    setActiveHealthScopeDraft({ scopeVersion: 2, excludedGroupIds: [], excludedTypeIds: [] });
     healthScopeDraftDirty = true;
     renderHealthScopeManager();
   });
   $("#resetHealthScope").addEventListener("click", () => {
-    healthScopeDraft = defaultHealthScopeForCard(activeHealthScopeKind, typeGroups());
+    setActiveHealthScopeDraft(defaultHealthScopeForCard(activeHealthScopeKind, typeGroups()));
     healthScopeDraftDirty = true;
     renderHealthScopeManager();
   });
@@ -5841,7 +6081,21 @@ function openSettingsSheet(sheetId) {
   }
   if (sheetId === "healthScopeSheet") {
     const config = healthConfig();
-    healthScopeDraft = structuredClone(config[activeHealthScopeKind] || defaultHealthScopeForCard(activeHealthScopeKind, typeGroups()));
+    if (isCustomHealthCardKey(activeHealthScopeKind)) {
+      const existing = activeCustomHealthCard();
+      customHealthDraft = structuredClone(existing || {
+        id: customHealthCardId(activeHealthScopeKind) || id(),
+        name: "自定义占比",
+        denominatorMode: "assets",
+        numeratorScope: defaultHealthScopeForCard("custom", typeGroups()),
+        denominatorScope: defaultHealthScopeForCard("custom", typeGroups()),
+      });
+      activeCustomHealthScopePart = "numerator";
+      healthScopeDraft = null;
+    } else {
+      customHealthDraft = null;
+      healthScopeDraft = structuredClone(config[activeHealthScopeKind] || defaultHealthScopeForCard(activeHealthScopeKind, typeGroups()));
+    }
     healthScopeDraftDirty = false;
     renderHealthScopeManager();
   }
@@ -5893,6 +6147,8 @@ async function closeSettingsSheet(sheet) {
   }
   if (sheet.id === "healthScopeSheet") {
     healthScopeDraft = null;
+    customHealthDraft = null;
+    activeCustomHealthScopePart = "numerator";
     healthScopeDraftDirty = false;
   }
   if (sheet.id === "currencySettingsSheet") {
@@ -5930,6 +6186,7 @@ async function saveTypeDraft() {
   }
   state.settings.accountTypeGroups = structuredClone(typeDraft);
   state.settings.healthConfig = normalizeHealthConfig(state.settings.healthConfig, state.settings.accountTypeGroups);
+  state.settings.healthCustomCards = normalizeHealthCustomCards(state.settings.healthCustomCards, state.settings.accountTypeGroups);
   typeDraftDirty = false;
   saveState();
   renderAll();

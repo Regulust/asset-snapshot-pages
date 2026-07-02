@@ -1821,12 +1821,45 @@ textarea {
   grid-area: hint;
 }
 
+.health-card.is-custom span::after {
+  content: "自定义";
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 700;
+  vertical-align: 1px;
+}
+
 .health-card:hover,
 .health-card:focus-visible {
   border-color: rgba(37, 99, 235, 0.35);
   box-shadow: 0 8px 20px rgba(37, 99, 235, 0.09);
   outline: 0;
   transform: translateY(-1px);
+}
+
+.custom-health-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.55fr) auto;
+  gap: 8px;
+  align-items: end;
+  margin: 0 0 10px;
+}
+
+.custom-health-scope-tabs {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.custom-health-scope-tabs[hidden],
+.custom-health-form[hidden] {
+  display: none;
 }
 
 .historical-report-actions {
