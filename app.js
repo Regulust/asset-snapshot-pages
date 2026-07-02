@@ -171,6 +171,16 @@ let snapshotHistoryCalendarMonth = "";
 const TREEMAP_OTHER_GROUP_ID = "__other__";
 const TREEMAP_OTHER_GROUP_LABEL = "其它";
 const TREEMAP_MIN_GROUP_SHARE = 0.02;
+const LINE_CHART_DEFAULTS = {
+  minWidth: 360,
+  maxWidth: 1080,
+  height: 300,
+  pad: { top: 30, right: 30, bottom: 56, left: 100 },
+  pointInset: 24,
+  strokeWidth: 3,
+  pointRadius: 4.1,
+  pointStrokeWidth: 2.2,
+};
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
@@ -1003,10 +1013,6 @@ function reportAnalysisSectionHtml(module) {
   `;
 }
 
-function renderHealthCards(total) {
-  $("#healthCards").innerHTML = healthCardsHtml(total);
-}
-
 function healthMetricValues(total) {
   const assets = Math.max(total.assets || 0, 0);
   const liabilityRows = healthScopedRows(total, "liability")
@@ -1405,10 +1411,6 @@ function healthScopedGroupEntries(rows) {
   return Object.entries(grouped).filter(([, value]) => value > 0);
 }
 
-function isLiabilityRateAccount(account, groups = typeGroups(), config = healthConfig(groups)) {
-  return accountInHealthScope(account, "liability", groups, config);
-}
-
 function activeHealthScopeMeta(kind = activeHealthScopeKind) {
   const meta = HEALTH_CARD_META[kind] || HEALTH_CARD_META.liability;
   return {
@@ -1475,96 +1477,6 @@ async function saveHealthScopeDraft() {
   if (activeHealthDetailKind === activeHealthScopeKind && !$("#healthDetailSheet").hidden) openHealthDetail(activeHealthDetailKind);
   await closeSettingsSheet($("#healthScopeSheet"));
   return true;
-}
-
-function renderAssetTreemap(total) {
-  $("#assetTreemap").innerHTML = assetTreemapHtml(total, {
-    selectedGroupId: selectedTreemapGroup,
-    backId: "treemapBack",
-    tooltipId: "treemapTooltip",
-    groupAttr: "data-treemap-group",
-    detailAttr: "data-treemap-detail",
-  });
-  return;
-  const assets = total.accounts
-    .filter((row) => row.account.includeInNetWorth !== false && row.converted > 0)
-    .map((row) => ({ account: row.account, group: accountGroupName(row.account), value: row.converted }))
-    .sort((a, b) => b.value - a.value);
-  const sum = assets.reduce((totalValue, row) => totalValue + row.value, 0);
-  if (!sum) {
-    $("#assetTreemap").innerHTML = emptyHtml();
-    return;
-  }
-  const grouped = assets.reduce((result, row) => {
-    (result[row.group] ||= []).push(row);
-    return result;
-  }, {});
-  const colors = ["#2563eb", "#059669", "#7c3aed", "#0891b2", "#b45309", "#dc2626"];
-  const rawGroupItems = Object.entries(grouped)
-    .map(([group, rows], groupIndex) => ({
-      id: group,
-      label: group,
-      value: rows.reduce((sumValue, row) => sumValue + row.value, 0),
-      rows,
-      color: colors[groupIndex % colors.length],
-    }))
-    .sort((a, b) => b.value - a.value);
-  const lowValueGroups = rawGroupItems.filter((item) => item.value / sum < TREEMAP_MIN_GROUP_SHARE);
-  const primaryGroups = rawGroupItems.filter((item) => item.value / sum >= TREEMAP_MIN_GROUP_SHARE);
-  const groupItems = lowValueGroups.length && primaryGroups.length
-    ? [
-        ...primaryGroups,
-        {
-          id: TREEMAP_OTHER_GROUP_ID,
-          label: TREEMAP_OTHER_GROUP_LABEL,
-          value: lowValueGroups.reduce((totalValue, item) => totalValue + item.value, 0),
-          rows: lowValueGroups.flatMap((item) => item.rows),
-          color: "#64748b",
-        },
-      ].sort((a, b) => b.value - a.value)
-    : rawGroupItems;
-  if (selectedTreemapGroup && !groupItems.some((item) => item.id === selectedTreemapGroup)) selectedTreemapGroup = null;
-
-  const selectedGroup = selectedTreemapGroup ? groupItems.find((item) => item.id === selectedTreemapGroup) : null;
-  const items = selectedGroup
-    ? selectedGroup.rows.map((row) => ({
-        id: row.account.id,
-        label: selectedGroup.id === TREEMAP_OTHER_GROUP_ID ? `${row.account.name} · ${row.group}` : row.account.name,
-        value: row.value,
-        color: selectedGroup.color,
-      }))
-    : groupItems;
-  const itemSum = selectedGroup ? selectedGroup.value : sum;
-  const rects = layoutTreemap(items, { x: 0, y: 0, w: 100, h: 100 });
-  $("#assetTreemap").innerHTML = `
-    <div class="treemap-toolbar">
-      <div>
-        <b>${selectedGroup ? escapeHtml(selectedGroup.label) : "全部资产分组"}</b>
-        <span>${selectedGroup ? "账户明细" : "点击分组查看账户明细"}</span>
-      </div>
-      <button class="secondary-button small" id="treemapBack" type="button" ${selectedGroup ? "" : "hidden"}>返回上层</button>
-    </div>
-    <div class="treemap-canvas" aria-label="${selectedGroup ? "分组账户矩形树图" : "资产分组矩形树图"}">
-      ${rects.map((item) => {
-        const area = item.w * item.h;
-        const densityClass = area < 420 ? "is-tiny" : area < 900 ? "is-compact" : "";
-        const itemMoney = formatMoney(item.value);
-        const itemPercent = percentText(item.value / itemSum);
-        const clickAttrs = selectedGroup
-          ? ` role="button" tabindex="0" data-treemap-detail="true" data-treemap-label="${escapeHtml(item.label)}" data-treemap-money="${escapeHtml(itemMoney)}" data-treemap-percent="${escapeHtml(itemPercent)}"`
-          : ` role="button" tabindex="0" data-treemap-group="${escapeHtml(item.id)}"`;
-        return `
-          <article class="treemap-tile ${densityClass} is-clickable" ${clickAttrs}
-            style="left:${item.x}%; top:${item.y}%; width:${item.w}%; height:${item.h}%; background:${item.color};">
-            <b>${escapeHtml(item.label)}</b>
-            <span>${moneySpan(itemMoney)}</span>
-            <small>${itemPercent}</small>
-          </article>
-        `;
-      }).join("")}
-      <div class="treemap-tooltip" id="treemapTooltip" hidden></div>
-    </div>
-  `;
 }
 
 function showTreemapTooltip(tile) {
@@ -1666,6 +1578,15 @@ function historicalReportExportCss() {
       box-shadow: 0 12px 28px rgba(15, 23, 42, .06);
     }
     body.report-export header { padding: 18px 20px; }
+    body.report-export .report-section {
+      padding: 18px 20px 20px;
+      gap: 14px;
+    }
+    body.report-export .report-section-heading {
+      align-items: flex-end;
+      gap: 12px;
+      margin: 0;
+    }
     body.report-export h1,
     body.report-export h2,
     body.report-export h3,
@@ -1674,10 +1595,12 @@ function historicalReportExportCss() {
     body.report-export .report-summary-grid,
     body.report-export .health-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     body.report-export .report-summary-grid article {
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: auto minmax(0, 1fr);
       align-items: center;
     }
-    body.report-export .report-summary-grid b { text-align: right; }
+    body.report-export .report-summary-grid b { text-align: right; font-size: 16px; font-weight: 700; line-height: 1; }
+    body.report-export .report-summary-grid article:first-child b { font-size: 16px; font-weight: 700; }
+    body.report-export .report-summary-grid b .money { font-size: inherit; font-weight: inherit; line-height: inherit; }
     body.report-export .health-card span,
     body.report-export .health-card small {
       white-space: normal;
@@ -1923,24 +1846,6 @@ function renderTrend() {
     return;
   }
 
-  const width = Math.max(520, Math.min(900, Math.round(svg.getBoundingClientRect().width || 900)));
-  const height = 320;
-  const pad = { top: 34, right: 30, bottom: 62, left: 104 };
-  const values = points.flatMap((point) => activeSeries.map((series) => point[series.key]));
-  const { min, max, ticks: yTickValues } = chartBounds(values);
-  const spread = max - min;
-  const pointInset = 30;
-  const plotWidth = width - pad.left - pad.right - pointInset * 2;
-  const plotHeight = height - pad.top - pad.bottom;
-  const xStep = points.length > 1 ? plotWidth / (points.length - 1) : 0;
-  const coords = points.map((point, index) => {
-    const x = points.length > 1 ? pad.left + pointInset + index * xStep : pad.left + pointInset + plotWidth / 2;
-    const seriesCoords = Object.fromEntries(activeSeries.map((series) => [
-      series.key,
-      { x, y: height - pad.bottom - ((point[series.key] - min) / spread) * plotHeight },
-    ]));
-    return { ...point, x, seriesCoords };
-  });
   const previous = points[points.length - 2]?.net;
   const last = points[points.length - 1].net;
   const change = previous === undefined ? 0 : last - previous;
@@ -1953,11 +1858,6 @@ function renderTrend() {
 
   renderInteractiveLineChart(svg, points, activeSeries, {
     chartId: "trend",
-    height,
-    pad,
-    pointInset,
-    strokeWidth: 3.5,
-    pointRadius: 5.5,
     emptyText: "暂无趋势数据",
   });
   return;
@@ -2369,10 +2269,6 @@ function heatmapMetricDensityValue(stat) {
   return snapshotHeatmapMetricConfig().absolute ? Math.abs(value) : value;
 }
 
-function heatmapMetricHtml(value) {
-  return snapshotHeatmapMetricConfig().format(value);
-}
-
 function monthlyHeatmapStats() {
   const buckets = {};
   snapshotHeatmapDailyStats().forEach((stat) => {
@@ -2385,17 +2281,6 @@ function monthlyHeatmapStats() {
     bucket.dates.push(stat);
   });
   return Object.values(buckets).sort((a, b) => a.monthKey.localeCompare(b.monthKey));
-}
-
-function snapshotDatesByMonth(year) {
-  const months = {};
-  state.snapshots
-    .filter((snapshot) => snapshot.date.startsWith(`${year}-`))
-    .forEach((snapshot) => {
-      const month = snapshot.date.slice(5, 7);
-      (months[month] ||= new Set()).add(snapshot.date);
-    });
-  return months;
 }
 
 function renderSnapshotHeatmap() {
@@ -2836,16 +2721,19 @@ function renderInteractiveLineChart(svg, points, series, options = {}) {
     svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#667085">${escapeHtml(options.emptyText || "暂无趋势数据")}</text>`;
     return;
   }
-  const width = Math.max(360, Math.min(900, Math.round(svg.getBoundingClientRect().width || 900)));
-  const height = options.height || 300;
-  const pad = options.pad || { top: 30, right: 30, bottom: 56, left: 100 };
-  const axisFontSize = width < 520 ? 11 : width < 720 ? 12 : 13;
-  const xAxisFontSize = width < 520 ? 11 : width < 720 ? 12 : 13;
+  const width = Math.max(
+    options.minWidth || LINE_CHART_DEFAULTS.minWidth,
+    Math.min(options.maxWidth || LINE_CHART_DEFAULTS.maxWidth, Math.round(svg.getBoundingClientRect().width || LINE_CHART_DEFAULTS.maxWidth))
+  );
+  const height = options.height || LINE_CHART_DEFAULTS.height;
+  const pad = options.pad || LINE_CHART_DEFAULTS.pad;
+  const axisFontSize = width < 520 ? 11 : 12;
+  const xAxisFontSize = axisFontSize;
   const tooltip = lineChartTooltipMetrics(width, activeSeries.length);
   const values = points.flatMap((point) => activeSeries.map((item) => Number(point[item.key]) || 0));
   const { min, max, ticks } = chartBounds(values);
   const spread = Math.max(max - min, 1);
-  const pointInset = options.pointInset ?? 24;
+  const pointInset = options.pointInset ?? LINE_CHART_DEFAULTS.pointInset;
   const plotWidth = width - pad.left - pad.right - pointInset * 2;
   const plotHeight = height - pad.top - pad.bottom;
   const xStep = points.length > 1 ? plotWidth / (points.length - 1) : 0;
@@ -2870,12 +2758,12 @@ function renderInteractiveLineChart(svg, points, series, options = {}) {
     <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}" stroke="#aeb7c6" />
     ${activeSeries.map((item) => {
       const line = coords.map((point) => `${point.seriesCoords[item.key].x},${point.seriesCoords[item.key].y}`).join(" ");
-      return `<polyline points="${line}" fill="none" stroke="${item.color}" stroke-width="${options.strokeWidth || 3}" stroke-linecap="round" stroke-linejoin="round" />`;
+      return `<polyline points="${line}" fill="none" stroke="${item.color}" stroke-width="${options.strokeWidth || LINE_CHART_DEFAULTS.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" />`;
     }).join("")}
     ${coords.map((point) => `
       <line x1="${point.x}" y1="${height - pad.bottom}" x2="${point.x}" y2="${height - pad.bottom + 7}" stroke="#aeb7c6" />
       <text x="${point.x}" y="${height - 16}" text-anchor="middle" class="chart-axis-label chart-x-label" style="font-size:${xAxisFontSize}px;">${escapeHtml(point.label)}</text>
-      ${activeSeries.map((item) => `<circle class="trend-point" cx="${point.seriesCoords[item.key].x}" cy="${point.seriesCoords[item.key].y}" r="${options.pointRadius || 4.8}" fill="#fff" stroke="${item.color}" stroke-width="2.6"><title>${escapeHtml(point.title)} · ${escapeHtml(item.label)}: ${escapeHtml(formatValue(point[item.key]))}</title></circle>`).join("")}
+      ${activeSeries.map((item) => `<circle class="trend-point" cx="${point.seriesCoords[item.key].x}" cy="${point.seriesCoords[item.key].y}" r="${options.pointRadius || LINE_CHART_DEFAULTS.pointRadius}" fill="#fff" stroke="${item.color}" stroke-width="${options.pointStrokeWidth || LINE_CHART_DEFAULTS.pointStrokeWidth}"><title>${escapeHtml(point.title)} · ${escapeHtml(item.label)}: ${escapeHtml(formatValue(point[item.key]))}</title></circle>`).join("")}
     `).join("")}
     <g id="${chartId}Guide" class="trend-guide" visibility="hidden">
       <line class="trend-guide-x" stroke-dasharray="6 5"></line>
@@ -3540,104 +3428,6 @@ function filteredSnapshotsSorted() {
       snapshotMatchesTagFilters(snapshot) &&
       snapshotMatchesDateRange(snapshot)
     );
-}
-
-function renderSnapshots() {
-  const list = $("#snapshotList");
-  list.querySelectorAll(".snapshot-month-group[open]").forEach((group) => {
-    if (group.dataset.snapshotMonth) openSnapshotMonths.add(group.dataset.snapshotMonth);
-  });
-  const sorted = [...state.snapshots].sort((a, b) => b.date.localeCompare(a.date));
-  const latest = sorted[0];
-  $("#snapshotHistoryEntrySummary").textContent = state.snapshots.length
-    ? `共 ${state.snapshots.length} 条 · 最近 ${latest.date}`
-    : "暂无历史快照";
-  renderSnapshotFilters();
-  const validSnapshotIds = new Set(state.snapshots.map((snapshot) => snapshot.id));
-  const reportMode = snapshotHistoryMode === "report";
-  [...selectedSnapshotIds].forEach((snapshotId) => {
-    if (!validSnapshotIds.has(snapshotId)) selectedSnapshotIds.delete(snapshotId);
-  });
-  $("#toggleSnapshotManage").textContent = snapshotManageMode ? "完成" : "快照管理";
-  $("#toggleSnapshotManage").classList.toggle("primary-button", snapshotManageMode);
-  $("#toggleSnapshotManage").classList.toggle("secondary-button", !snapshotManageMode);
-  $("#deleteSelectedSnapshots").hidden = !snapshotManageMode;
-  $("#deleteSelectedSnapshots").disabled = selectedSnapshotIds.size === 0;
-  $("#selectFilteredSnapshots").hidden = !snapshotManageMode || filteredSnapshotsSorted().length === 0;
-  $("#selectFilteredSnapshots").textContent = selectedSnapshotIds.size ? "取消选择" : "筛选全选";
-  $("#toggleSnapshotHistoryView").textContent = snapshotHistoryView === "calendar" ? "列表视图" : "日历视图";
-  if (reportMode) {
-    snapshotManageMode = false;
-    $("#toggleSnapshotManage").hidden = true;
-    $("#deleteSelectedSnapshots").hidden = true;
-  } else {
-    $("#toggleSnapshotManage").hidden = false;
-  }
-  if (state.snapshots.length === 0) {
-    $("#snapshotHistoryHint").textContent = "暂无历史快照";
-    $("#toggleSnapshotLimit").hidden = true;
-    list.innerHTML = emptyHtml();
-    return;
-  }
-  const filtered = filteredSnapshotsSorted();
-  const visibleSnapshots = showAllSnapshots ? filtered : filtered.slice(0, 10);
-  $("#toggleSnapshotLimit").hidden = filtered.length <= 10;
-  $("#toggleSnapshotLimit").textContent = showAllSnapshots ? "只看最近 10 条" : "查看全部";
-  $("#snapshotHistoryHint").textContent = snapshotManageMode
-    ? `已选择 ${selectedSnapshotIds.size} 条`
-    : `${showAllSnapshots ? "全部" : "最近 10 条"} · 共 ${sorted.length} 条`;
-  if (!snapshotManageMode) {
-    const filterParts = [];
-    if (compactText(snapshotSearchQuery)) filterParts.push(`搜索：${compactText(snapshotSearchQuery)}`);
-    if (snapshotDateFrom || snapshotDateTo) filterParts.push(`日期：${snapshotDateFrom || "最早"} → ${snapshotDateTo || "最新"}`);
-    if (selectedSnapshotTagFilters.size) filterParts.push(`标签：${[...selectedSnapshotTagFilters].join("、")}`);
-    $("#snapshotHistoryHint").textContent = `${filterParts.length ? `${filterParts.join(" · ")} · ` : ""}${showAllSnapshots ? "全部" : "最近 10 条"} · 共 ${filtered.length} 条`;
-  }
-  if (filtered.length === 0) {
-    $("#toggleSnapshotLimit").hidden = true;
-    list.innerHTML = emptyHtml();
-    return;
-  }
-  if (snapshotHistoryView === "calendar") {
-    list.innerHTML = snapshotHistoryCalendarHtml(visibleSnapshots);
-    return;
-  }
-  const groups = visibleSnapshots.reduce((result, snapshot) => {
-    const month = snapshot.date.slice(0, 7);
-    (result[month] ||= []).push(snapshot);
-    return result;
-  }, {});
-  list.innerHTML = Object.entries(groups)
-    .map(([month, snapshots]) => `
-      <details class="snapshot-month-group">
-        <summary>${month}<span>${snapshots.length} 条</span></summary>
-        <div class="snapshot-month-list">
-          ${snapshots
-            .map((snapshot) => {
-              const total = snapshotTotal(snapshot);
-              const count = Object.values(snapshot.balances).filter((value) => Number(value) !== 0).length;
-              const checked = selectedSnapshotIds.has(snapshot.id) ? "checked" : "";
-              const note = compactText(snapshot.note);
-              const notePreview = compactPreview(note);
-              const rowTag = snapshotManageMode ? "div" : "button";
-              return `
-                <${rowTag} class="table-row snapshot-row" data-edit-snapshot="${snapshot.id}" ${snapshotManageMode ? "" : 'type="button"'}>
-                  ${snapshotManageMode ? `<label class="snapshot-select"><input data-select-snapshot="${snapshot.id}" type="checkbox" ${checked} /><span class="sr-only">选择 ${snapshot.date}</span></label>` : ""}
-                  <div>
-                    <div class="snapshot-date-line"><b>${snapshot.date}</b>${snapshotTagsHtml(snapshot)}</div>
-                    <span class="meta">${count} 个账户有余额${note ? ` · <span class="snapshot-note-preview" title="${escapeHtml(note)}">${escapeHtml(notePreview)}</span>` : ""}</span>
-                  </div>
-                  <div class="snapshot-total">
-                    <b>${moneySpan(formatMoney(total.net))}</b>
-                  </div>
-                </${rowTag}>
-              `;
-            })
-            .join("")}
-        </div>
-      </details>
-    `)
-    .join("");
 }
 
 function renderSnapshots() {

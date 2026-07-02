@@ -1684,7 +1684,7 @@ textarea {
 
 .line-chart {
   width: 100%;
-  height: 320px;
+  height: 300px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcff;
@@ -1846,9 +1846,13 @@ textarea {
   gap: 8px;
 }
 
+.historical-report-content .report-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .report-summary-grid article {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 8px;
   min-width: 0;
@@ -1861,15 +1865,21 @@ textarea {
 .report-summary-grid span {
   color: var(--muted);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 .report-summary-grid b {
   overflow: hidden;
   color: var(--ink);
-  font-size: 18px;
+  font-size: 16px;
   text-align: right;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.report-summary-grid article:first-child b {
+  font-size: 16px;
+  font-weight: 700;
 }
 
 .report-section {
@@ -2589,10 +2599,6 @@ textarea {
   font-size: 11px;
   font-weight: 800;
   text-align: right;
-}
-
-.analysis-trend-chart {
-  height: 260px;
 }
 
 .gain-summary-grid {
@@ -3511,16 +3517,27 @@ h2,
 }
 
 .health-card b {
-  font-size: 20px;
+  font-size: 18px;
   font-weight: var(--weight-strong);
   line-height: 1.05;
 }
 
-.contribution-total-card b,
-.report-summary-grid b {
+.contribution-total-card b {
   font-size: 18px;
   font-weight: var(--weight-strong);
   line-height: 1.1;
+}
+
+.report-summary-grid b {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.report-summary-grid b .money {
+  font-size: inherit;
+  font-weight: inherit;
+  line-height: inherit;
 }
 
 body,
@@ -3742,6 +3759,17 @@ select {
 
 .hidden-money .money {
   user-select: none;
+}
+
+@media (max-width: 1120px) {
+  .health-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .health-card {
+    min-height: 62px;
+    padding-inline: 14px;
+  }
 }
 
 @media (max-width: 860px) {
@@ -3969,7 +3997,7 @@ select {
   }
 
   .health-card b {
-    font-size: 19px;
+    font-size: 17px;
   }
 
   .health-detail-row {
