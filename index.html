@@ -3,50 +3,78 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="theme-color" content="#2563eb" />
+    <meta name="theme-color" content="#2f63df" />
     <meta name="description" content="本地资产余额快照记账 PWA" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=134" />
+    <link rel="stylesheet" href="./styles.css?v=135" />
     <title>资产快照本</title>
   </head>
   <body>
-    <header class="app-header">
-      <div>
-        <p class="eyebrow">Local Net Worth Tracker</p>
-        <h1>资产快照本</h1>
-      </div>
-      <button class="ghost-button" id="privacyToggle" type="button">隐藏金额</button>
-    </header>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="应用导航">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">资</span>
+          <div>
+            <strong>资产快照本</strong>
+            <span>v0.2.0 / res v135</span>
+          </div>
+        </div>
 
-    <nav class="tabs" aria-label="主导航">
-      <button class="tab active" data-tab="dashboard" type="button">总览</button>
-      <button class="tab" data-tab="accounts" type="button">账户</button>
-      <button class="tab" data-tab="analysis" type="button">分析</button>
-      <button class="tab" data-tab="settings" type="button">设置</button>
-    </nav>
+        <nav class="tabs" aria-label="主导航">
+          <button class="tab active" data-tab="dashboard" type="button">总览</button>
+          <button class="tab" data-tab="accounts" type="button">账户</button>
+          <button class="tab" data-tab="analysis" type="button">分析</button>
+          <button class="tab" data-tab="settings" type="button">设置</button>
+        </nav>
 
-    <main>
-      <section class="view active" id="dashboardView">
-        <div class="metric-grid">
-          <article class="metric-card">
+        <div class="sidebar-note">
+          <strong>本地资产看板</strong>
+          <span>所有数据保存在当前浏览器，请定期导出 JSON 备份。</span>
+        </div>
+      </aside>
+
+      <div class="app-main">
+        <header class="app-header">
+          <div class="brand mobile-brand">
+            <span class="brand-mark" aria-hidden="true">资</span>
+            <div>
+              <strong>资产快照本</strong>
+              <span>v0.2.0 / res v135</span>
+            </div>
+          </div>
+          <div class="page-title">
+            <p class="eyebrow">Local Net Worth Tracker</p>
+            <h1>资产快照本</h1>
+          </div>
+          <button class="ghost-button" id="privacyToggle" type="button">隐藏金额</button>
+        </header>
+
+        <main>
+          <section class="view active dashboard-view" id="dashboardView">
+            <div class="dashboard-layout">
+              <div class="dashboard-main">
+                <div class="dashboard-hero-grid">
+                  <article class="metric-card net-worth-hero">
             <span>最新净值</span>
             <strong id="netWorthValue">-</strong>
             <small id="latestDateText">暂无快照</small>
           </article>
-          <article class="metric-card">
-            <span>资产合计</span>
-            <strong id="assetValue">-</strong>
-            <small>仅统计计入净值账户</small>
-          </article>
-          <article class="metric-card">
-            <span>负债合计</span>
-            <strong id="liabilityValue">-</strong>
-            <small>信用卡、贷款等账户</small>
-          </article>
-        </div>
+                  <div class="metric-grid dashboard-kpis">
+                    <article class="metric-card">
+                      <span>资产合计</span>
+                      <strong id="assetValue">-</strong>
+                      <small>仅统计计入净值账户</small>
+                    </article>
+                    <article class="metric-card">
+                      <span>负债合计</span>
+                      <strong id="liabilityValue">-</strong>
+                      <small>信用卡、贷款等账户</small>
+                    </article>
+                  </div>
+                </div>
 
-        <section class="panel">
+        <section class="panel dashboard-trend-panel">
           <div class="panel-heading">
             <h2>资产趋势</h2>
             <span id="trendSummary"></span>
@@ -67,7 +95,20 @@
           <svg id="trendChart" class="line-chart" role="img" aria-label="资产负债净值趋势图"></svg>
         </section>
 
-        <div class="split-grid">
+                <section class="panel dashboard-account-panel">
+          <div class="panel-heading">
+            <h2>账户明细</h2>
+            <div class="panel-actions">
+              <span id="accountCountText"></span>
+              <button class="secondary-button small" id="toggleOverviewGroups" type="button">全部展开</button>
+              <button class="secondary-button" id="toggleOverviewAccountSort" type="button">排序</button>
+            </div>
+          </div>
+          <div id="accountTable" class="table-like"></div>
+        </section>
+              </div>
+
+              <aside class="dashboard-side">
           <section class="panel">
             <div class="panel-heading">
               <h2>分组占比</h2>
@@ -83,23 +124,13 @@
             </div>
             <div id="typeBreakdown" class="bars"></div>
           </section>
-        </div>
-
-        <section class="panel">
-          <div class="panel-heading">
-            <h2>账户明细</h2>
-            <div class="panel-actions">
-              <span id="accountCountText"></span>
-              <button class="secondary-button small" id="toggleOverviewGroups" type="button">全部展开</button>
-              <button class="secondary-button" id="toggleOverviewAccountSort" type="button">排序</button>
+              </aside>
             </div>
-          </div>
-          <div id="accountTable" class="table-like"></div>
-        </section>
       </section>
 
-      <section class="view" id="accountsView">
-        <section class="panel account-list-panel">
+      <section class="view accounts-view" id="accountsView">
+        <div class="accounts-layout">
+          <section class="panel account-list-panel">
           <div class="panel-heading">
             <div>
               <h2>账户列表</h2>
@@ -112,6 +143,28 @@
           </div>
           <div id="accountsList" class="cards-list"></div>
         </section>
+          <aside class="accounts-side">
+        <section class="panel snapshot-launcher-panel accounts-action-card">
+          <div class="panel-heading">
+            <div>
+              <h2>余额快照</h2>
+              <span>手动记录各账户在某一天的余额</span>
+            </div>
+          </div>
+          <button class="primary-button wide-action" id="openSnapshotForm" type="button">录入余额快照</button>
+        </section>
+
+        <section class="panel accounts-action-card">
+          <div class="panel-heading">
+            <div>
+              <h2>历史快照</h2>
+              <span id="snapshotHistoryEntrySummary">查看、搜索和管理历史记录</span>
+            </div>
+          </div>
+          <button class="secondary-button wide-action" id="openSnapshotHistory" type="button">查看历史快照</button>
+        </section>
+          </aside>
+        </div>
 
         <div class="sheet-backdrop" id="accountSheet" hidden>
           <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="accountFormTitle">
@@ -176,18 +229,6 @@
             </form>
           </section>
         </div>
-        <section class="panel snapshot-launcher-panel">
-          <div class="panel-heading">
-            <div>
-              <h2>余额快照</h2>
-              <span>手动记录各账户在某一天的余额</span>
-            </div>
-            <div class="panel-actions">
-              <button class="primary-button" id="openSnapshotForm" type="button">录入余额快照</button>
-            </div>
-          </div>
-        </section>
-
         <div class="sheet-backdrop" id="snapshotSheet" hidden>
           <section class="account-sheet snapshot-sheet" role="dialog" aria-modal="true" aria-labelledby="snapshotFormTitle">
             <div class="sheet-heading">
@@ -246,18 +287,6 @@
           </section>
         </div>
 
-        <section class="panel">
-          <div class="panel-heading">
-            <div>
-              <h2>历史快照</h2>
-              <span id="snapshotHistoryEntrySummary">查看、搜索和管理历史记录</span>
-            </div>
-            <div class="panel-actions">
-              <button class="secondary-button" id="openSnapshotHistory" type="button">查看历史快照</button>
-            </div>
-          </div>
-        </section>
-
         <div class="sheet-backdrop" id="snapshotHistorySheet" hidden>
           <section class="account-sheet snapshot-history-sheet" role="dialog" aria-modal="true" aria-labelledby="snapshotHistoryTitle">
             <div class="sheet-heading">
@@ -299,8 +328,8 @@
         </div>
       </section>
 
-      <section class="view" id="analysisView">
-        <section class="panel">
+      <section class="view analysis-view" id="analysisView">
+        <section class="panel analysis-report-launcher">
           <div class="panel-heading">
             <div>
               <h2>历史分析报告</h2>
@@ -310,16 +339,184 @@
           </div>
         </section>
 
-        <section class="panel">
-          <div class="panel-heading">
-            <div>
-              <h2>资产健康</h2>
-              <span>按最新快照计算</span>
-            </div>
-            <button class="secondary-button small" id="addCustomHealthCard" type="button">新增占比卡</button>
+        <div class="analysis-layout">
+          <div class="analysis-main">
+            <section class="panel analysis-health-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>资产健康</h2>
+                  <span>按最新快照计算</span>
+                </div>
+                <button class="secondary-button small" id="addCustomHealthCard" type="button">新增占比卡</button>
+              </div>
+              <div id="healthCards" class="health-grid"></div>
+            </section>
+
+            <section class="panel analysis-trend-panel">
+              <div class="panel-heading analysis-trend-heading">
+                <div>
+                  <h2>趋势分析</h2>
+                  <span>按历史快照查看多维趋势变化</span>
+                </div>
+              </div>
+              <div class="analysis-trend-block">
+                <div class="analysis-trend-subheading">
+                  <div>
+                    <b>余额成本收益趋势</b>
+                    <span>按历史快照查看余额、成本和收益变化</span>
+                  </div>
+                  <div class="trend-control-stack">
+                    <label class="control-field">
+                      <select id="analysisTrendMetricSelect" class="control-select analysis-trend-metric-select" aria-label="趋势指标">
+                        <option value="balance">余额</option>
+                        <option value="cost">成本</option>
+                        <option value="gain">收益</option>
+                        <option value="gainRate">收益率</option>
+                      </select>
+                    </label>
+                    <label class="control-field">
+                      <select id="analysisTrendModeSelect" class="control-select analysis-trend-mode-select" aria-label="趋势查看方式">
+                        <option value="total">汇总</option>
+                        <option value="group">按分组</option>
+                        <option value="type">按分类</option>
+                        <option value="account">按账户</option>
+                      </select>
+                    </label>
+                    <div class="trend-period-tabs analysis-period-tabs" role="group" aria-label="余额成本收益趋势周期">
+                      <button class="trend-period" data-analysis-trend-period="day" type="button">日</button>
+                      <button class="trend-period active" data-analysis-trend-period="month" type="button">月</button>
+                      <button class="trend-period" data-analysis-trend-period="quarter" type="button">季</button>
+                      <button class="trend-period" data-analysis-trend-period="year" type="button">年</button>
+                    </div>
+                    <div class="trend-account-picker" id="analysisTrendAccountPicker" hidden>
+                      <button class="control-select-button analysis-trend-account-button" id="toggleAnalysisTrendAccountPicker" type="button" aria-expanded="false">选择账户</button>
+                      <div class="trend-account-popover" id="analysisTrendAccountPopover" hidden></div>
+                    </div>
+                  </div>
+                </div>
+                <div class="analysis-trend-summary" id="analysisTrendSummary"></div>
+                <div class="trend-legend" id="analysisTrendLegend"></div>
+                <svg id="analysisTrendChart" class="line-chart analysis-trend-chart" role="img" aria-label="余额成本收益趋势图"></svg>
+              </div>
+              <div class="analysis-trend-block analysis-health-trend-block">
+                <div class="analysis-trend-subheading">
+                  <div>
+                    <b>资产健康趋势</b>
+                    <span>同步资产健康卡配置口径</span>
+                  </div>
+                  <div class="trend-period-tabs analysis-period-tabs" role="group" aria-label="资产健康趋势周期">
+                    <button class="trend-period" data-analysis-health-trend-period="day" type="button">日</button>
+                    <button class="trend-period active" data-analysis-health-trend-period="month" type="button">月</button>
+                    <button class="trend-period" data-analysis-health-trend-period="quarter" type="button">季</button>
+                    <button class="trend-period" data-analysis-health-trend-period="year" type="button">年</button>
+                  </div>
+                </div>
+                <div class="analysis-trend-summary" id="analysisHealthTrendSummary"></div>
+                <div class="trend-legend" id="analysisHealthTrendLegend"></div>
+                <svg id="analysisHealthTrendChart" class="line-chart analysis-trend-chart" role="img" aria-label="资产健康趋势图"></svg>
+              </div>
+            </section>
+
+            <section class="panel analysis-treemap-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>资产结构 Treemap</h2>
+                  <span>按分组大类展示，点击矩形查看账户明细</span>
+                </div>
+              </div>
+              <div id="assetTreemap" class="asset-treemap"></div>
+            </section>
+
+            <section class="panel analysis-gain-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>收益分析</h2>
+                  <span>按最新快照成本计算账户收益</span>
+                </div>
+              </div>
+              <div id="gainAnalysis" class="gain-analysis"></div>
+            </section>
           </div>
-          <div id="healthCards" class="health-grid"></div>
-        </section>
+
+          <aside class="analysis-side">
+            <section class="panel analysis-time-panel analysis-side-panel">
+              <div class="panel-heading analysis-compact-heading">
+                <div>
+                  <h2>快照日历热力图</h2>
+                  <span id="snapshotHeatmapSummary">按快照日期查看记录密度</span>
+                </div>
+                <div class="heatmap-controls">
+                  <label class="control-field">
+                    <select id="snapshotHeatmapMode" class="control-select" aria-label="热力图粒度">
+                      <option value="day">按日</option>
+                      <option value="month">按月</option>
+                    </select>
+                  </label>
+                  <label class="control-field">
+                    <select id="snapshotHeatmapMetric" class="control-select" aria-label="热力图指标">
+                      <option value="count">快照数</option>
+                      <option value="net">净值变化</option>
+                      <option value="cost">成本变化</option>
+                      <option value="gain">收益变化</option>
+                    </select>
+                  </label>
+                  <label class="control-field heatmap-range-control">
+                    <select id="snapshotHeatmapRange" class="control-select" aria-label="热力图范围">
+                      <option value="year">本年</option>
+                      <option value="12">近 12 月</option>
+                      <option value="24">近 24 月</option>
+                    </select>
+                  </label>
+                  <label class="control-field heatmap-year-control">
+                    <select id="snapshotHeatmapYear" class="control-select" aria-label="热力图年份"></select>
+                  </label>
+                  <label class="control-field heatmap-month-control">
+                    <select id="snapshotHeatmapMonth" class="control-select" aria-label="热力图月份"></select>
+                  </label>
+                  <label class="toggle-field heatmap-active-toggle">
+                    <input id="snapshotHeatmapActiveOnly" type="checkbox" />
+                    <span>仅有快照月份</span>
+                  </label>
+                </div>
+              </div>
+              <div id="snapshotHeatmap" class="snapshot-heatmap"></div>
+            </section>
+
+            <section class="panel analysis-side-panel">
+              <div class="panel-heading contribution-heading">
+                <div>
+                  <h2>净值变动贡献榜</h2>
+                  <span id="contributionSummary">按周期解释净值变化</span>
+                </div>
+                <div class="trend-period-tabs contribution-period-tabs" role="group" aria-label="净值变动贡献周期">
+                  <button class="trend-period active" data-contribution-period="day" type="button">日</button>
+                  <button class="trend-period" data-contribution-period="month" type="button">月</button>
+                  <button class="trend-period" data-contribution-period="quarter" type="button">季</button>
+                  <button class="trend-period" data-contribution-period="year" type="button">年</button>
+                </div>
+                <label class="control-field contribution-lookback-field">
+                  <select id="contributionLookbackSelect" class="control-select" aria-label="净值贡献比较范围">
+                    <option value="2">上一点</option>
+                    <option value="3">近 3 点</option>
+                    <option value="5">近 5 点</option>
+                    <option value="10">近 10 点</option>
+                  </select>
+                </label>
+              </div>
+              <div id="netWorthContribution" class="contribution-analysis"></div>
+            </section>
+
+            <section class="panel analysis-side-panel">
+              <div class="panel-heading">
+                <div>
+                  <h2>多币种暴露</h2>
+                  <span id="currencyExposureSummary">按最新快照折算统计</span>
+                </div>
+              </div>
+              <div id="currencyExposure" class="currency-exposure"></div>
+            </section>
+          </aside>
+        </div>
 
         <div class="sheet-backdrop" id="healthDetailSheet" hidden>
           <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="healthDetailTitle">
@@ -379,168 +576,6 @@
             </div>
           </section>
         </div>
-
-        <section class="panel">
-          <div class="panel-heading">
-            <div>
-              <h2>资产结构 Treemap</h2>
-              <span>按分组大类展示，点击矩形查看账户明细</span>
-            </div>
-          </div>
-          <div id="assetTreemap" class="asset-treemap"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-heading contribution-heading">
-            <div>
-              <h2>净值变动贡献榜</h2>
-              <span id="contributionSummary">按周期解释净值变化</span>
-            </div>
-            <div class="trend-period-tabs contribution-period-tabs" role="group" aria-label="净值变动贡献周期">
-              <button class="trend-period active" data-contribution-period="day" type="button">日</button>
-              <button class="trend-period" data-contribution-period="month" type="button">月</button>
-              <button class="trend-period" data-contribution-period="quarter" type="button">季</button>
-              <button class="trend-period" data-contribution-period="year" type="button">年</button>
-            </div>
-            <label class="control-field contribution-lookback-field">
-              <select id="contributionLookbackSelect" class="control-select" aria-label="净值贡献比较范围">
-                <option value="2">上一点</option>
-                <option value="3">近 3 点</option>
-                <option value="5">近 5 点</option>
-                <option value="10">近 10 点</option>
-              </select>
-            </label>
-          </div>
-          <div id="netWorthContribution" class="contribution-analysis"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-heading analysis-compact-heading">
-            <div>
-              <h2>快照日历热力图</h2>
-              <span id="snapshotHeatmapSummary">按快照日期查看记录密度</span>
-            </div>
-            <div class="heatmap-controls">
-              <label class="control-field">
-                <select id="snapshotHeatmapMode" class="control-select" aria-label="热力图粒度">
-                  <option value="day">按日</option>
-                  <option value="month">按月</option>
-                </select>
-              </label>
-              <label class="control-field">
-                <select id="snapshotHeatmapMetric" class="control-select" aria-label="热力图指标">
-                  <option value="count">快照数</option>
-                  <option value="net">净值变化</option>
-                  <option value="cost">成本变化</option>
-                  <option value="gain">收益变化</option>
-                </select>
-              </label>
-              <label class="control-field heatmap-range-control">
-                <select id="snapshotHeatmapRange" class="control-select" aria-label="热力图范围">
-                  <option value="year">本年</option>
-                  <option value="12">近 12 月</option>
-                  <option value="24">近 24 月</option>
-                </select>
-              </label>
-              <label class="control-field heatmap-year-control">
-                <select id="snapshotHeatmapYear" class="control-select" aria-label="热力图年份"></select>
-              </label>
-              <label class="control-field heatmap-month-control">
-                <select id="snapshotHeatmapMonth" class="control-select" aria-label="热力图月份"></select>
-              </label>
-              <label class="toggle-field heatmap-active-toggle">
-                <input id="snapshotHeatmapActiveOnly" type="checkbox" />
-                <span>仅有快照月份</span>
-              </label>
-            </div>
-          </div>
-          <div id="snapshotHeatmap" class="snapshot-heatmap"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-heading">
-            <div>
-              <h2>多币种暴露</h2>
-              <span id="currencyExposureSummary">按最新快照折算统计</span>
-            </div>
-          </div>
-          <div id="currencyExposure" class="currency-exposure"></div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-heading analysis-trend-heading">
-            <div>
-              <h2>趋势分析</h2>
-              <span>按历史快照查看多维趋势变化</span>
-            </div>
-          </div>
-          <div class="analysis-trend-block">
-            <div class="analysis-trend-subheading">
-              <div>
-                <b>余额成本收益趋势</b>
-                <span>按历史快照查看余额、成本和收益变化</span>
-              </div>
-              <div class="trend-control-stack">
-                <label class="control-field">
-                  <select id="analysisTrendMetricSelect" class="control-select analysis-trend-metric-select" aria-label="趋势指标">
-                    <option value="balance">余额</option>
-                    <option value="cost">成本</option>
-                    <option value="gain">收益</option>
-                    <option value="gainRate">收益率</option>
-                  </select>
-                </label>
-                <label class="control-field">
-                  <select id="analysisTrendModeSelect" class="control-select analysis-trend-mode-select" aria-label="趋势查看方式">
-                    <option value="total">汇总</option>
-                    <option value="group">按分组</option>
-                    <option value="type">按分类</option>
-                    <option value="account">按账户</option>
-                  </select>
-                </label>
-                <div class="trend-period-tabs analysis-period-tabs" role="group" aria-label="余额成本收益趋势周期">
-                  <button class="trend-period" data-analysis-trend-period="day" type="button">日</button>
-                  <button class="trend-period active" data-analysis-trend-period="month" type="button">月</button>
-                  <button class="trend-period" data-analysis-trend-period="quarter" type="button">季</button>
-                  <button class="trend-period" data-analysis-trend-period="year" type="button">年</button>
-                </div>
-                <div class="trend-account-picker" id="analysisTrendAccountPicker" hidden>
-                  <button class="control-select-button analysis-trend-account-button" id="toggleAnalysisTrendAccountPicker" type="button" aria-expanded="false">选择账户</button>
-                  <div class="trend-account-popover" id="analysisTrendAccountPopover" hidden></div>
-                </div>
-              </div>
-            </div>
-            <div class="analysis-trend-summary" id="analysisTrendSummary"></div>
-            <div class="trend-legend" id="analysisTrendLegend"></div>
-            <svg id="analysisTrendChart" class="line-chart analysis-trend-chart" role="img" aria-label="余额成本收益趋势图"></svg>
-          </div>
-          <div class="analysis-trend-block analysis-health-trend-block">
-            <div class="analysis-trend-subheading">
-              <div>
-                <b>资产健康趋势</b>
-                <span>同步资产健康卡配置口径</span>
-              </div>
-              <div class="trend-period-tabs analysis-period-tabs" role="group" aria-label="资产健康趋势周期">
-                <button class="trend-period" data-analysis-health-trend-period="day" type="button">日</button>
-                <button class="trend-period active" data-analysis-health-trend-period="month" type="button">月</button>
-                <button class="trend-period" data-analysis-health-trend-period="quarter" type="button">季</button>
-                <button class="trend-period" data-analysis-health-trend-period="year" type="button">年</button>
-              </div>
-            </div>
-            <div class="analysis-trend-summary" id="analysisHealthTrendSummary"></div>
-            <div class="trend-legend" id="analysisHealthTrendLegend"></div>
-            <svg id="analysisHealthTrendChart" class="line-chart analysis-trend-chart" role="img" aria-label="资产健康趋势图"></svg>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-heading">
-            <div>
-              <h2>收益分析</h2>
-              <span>按最新快照成本计算账户收益</span>
-            </div>
-          </div>
-          <div id="gainAnalysis" class="gain-analysis"></div>
-        </section>
 
         <div class="sheet-backdrop" id="historicalReportSheet" hidden>
           <section class="account-sheet historical-report-sheet" role="dialog" aria-modal="true" aria-labelledby="historicalReportTitle">
@@ -736,7 +771,9 @@
           </section>
         </div>
       </section>
-    </main>
+        </main>
+      </div>
+    </div>
 
     <template id="emptyTemplate">
       <div class="empty-state">还没有数据。先添加账户，再录入一次余额快照。</div>
@@ -753,6 +790,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=134" defer></script>
+    <script src="./app.js?v=135" defer></script>
   </body>
 </html>

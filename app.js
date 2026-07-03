@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v134";
+const APP_VERSION = "v0.2.0 / res v135";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -183,12 +183,12 @@ const TREEMAP_MIN_GROUP_SHARE = 0.02;
 const LINE_CHART_DEFAULTS = {
   minWidth: 360,
   maxWidth: 1080,
-  height: 300,
-  pad: { top: 30, right: 30, bottom: 56, left: 100 },
-  pointInset: 24,
-  strokeWidth: 3,
-  pointRadius: 4.1,
-  pointStrokeWidth: 2.2,
+  height: 280,
+  pad: { top: 28, right: 28, bottom: 52, left: 94 },
+  pointInset: 22,
+  strokeWidth: 2.4,
+  pointRadius: 3.1,
+  pointStrokeWidth: 1.8,
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -2097,9 +2097,9 @@ function renderTrend() {
 
 function trendSeries() {
   return [
-    { key: "assets", label: "资产", color: "#059669" },
-    { key: "liabilities", label: "负债", color: "#dc2626" },
-    { key: "net", label: "净值", color: "#2563eb" },
+    { key: "assets", label: "资产", color: "#2a9d76" },
+    { key: "liabilities", label: "负债", color: "#d95454" },
+    { key: "net", label: "净值", color: "#2f63df" },
   ];
 }
 
@@ -2947,14 +2947,14 @@ function renderInteractiveLineChart(svg, points, series, options = {}) {
   const formatValue = options.valueFormatter || ((value) => state.settings.privacy ? privateMoneyPlaceholder() : formatMoney(value));
   svg.innerHTML = `
     ${yTicks}
-    <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" stroke="#aeb7c6" />
-    <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}" stroke="#aeb7c6" />
+    <line class="chart-axis-line" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" />
+    <line class="chart-axis-line chart-axis-line-y" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}" />
     ${activeSeries.map((item) => {
       const line = coords.map((point) => `${point.seriesCoords[item.key].x},${point.seriesCoords[item.key].y}`).join(" ");
       return `<polyline points="${line}" fill="none" stroke="${item.color}" stroke-width="${options.strokeWidth || LINE_CHART_DEFAULTS.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" />`;
     }).join("")}
     ${coords.map((point) => `
-      <line x1="${point.x}" y1="${height - pad.bottom}" x2="${point.x}" y2="${height - pad.bottom + 7}" stroke="#aeb7c6" />
+      <line class="chart-x-tick" x1="${point.x}" y1="${height - pad.bottom}" x2="${point.x}" y2="${height - pad.bottom + 6}" />
       <text x="${point.x}" y="${height - 16}" text-anchor="middle" class="chart-axis-label chart-x-label" style="font-size:${xAxisFontSize}px;">${escapeHtml(point.label)}</text>
       ${activeSeries.map((item) => `<circle class="trend-point" cx="${point.seriesCoords[item.key].x}" cy="${point.seriesCoords[item.key].y}" r="${options.pointRadius || LINE_CHART_DEFAULTS.pointRadius}" fill="#fff" stroke="${item.color}" stroke-width="${options.pointStrokeWidth || LINE_CHART_DEFAULTS.pointStrokeWidth}"><title>${escapeHtml(point.title)} · ${escapeHtml(item.label)}: ${escapeHtml(formatValue(point[item.key]))}</title></circle>`).join("")}
     `).join("")}
@@ -3378,7 +3378,11 @@ function renderAccounts() {
           </div>
         </div>
         <div class="account-group-rows" ${collapsed ? "hidden" : ""}>
-        ${grouped[group].map((account) => `
+        ${grouped[group].map((account) => {
+          const currentBalance = accountCurrentBalance(account.id);
+          const balanceLabel = formatMoney(currentBalance, account.currency);
+          const cost = optionalNumber(account.costBasis);
+          return `
         <article class="account-card draggable-account" data-drop-account="${account.id}" data-account-group="${escapeHtml(group)}">
           <div class="drag-title">
             ${allowDrag ? `<button class="drag-handle" data-drag-account="${account.id}" data-account-group="${escapeHtml(group)}" type="button" title="拖动账户">⠿</button>` : ""}
@@ -3387,11 +3391,16 @@ function renderAccounts() {
             <div class="meta">${typeLabel(account.type)} · ${account.currency}${account.includeInNetWorth === false ? " · 不计入净值" : ""}${account.archived ? " · 已归档" : ""}</div>
             </div>
           </div>
+          <div class="account-card-side">
+            <strong>${moneySpan(balanceLabel)}</strong>
+            <span class="meta">${cost === null ? "未填成本" : `成本 ${moneySpan(formatMoney(cost, account.currency))}`}</span>
+          </div>
           <div class="account-actions">
             ${iconButton("edit", "编辑账户", `data-edit-account="${account.id}"`)}
           </div>
         </article>
-        `).join("")}
+        `;
+        }).join("")}
         </div>
       </section>`;
     }).join("")}</section>`;
