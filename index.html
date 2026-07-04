@@ -526,6 +526,7 @@
                 <span id="healthDetailSubtitle">按最新快照计算</span>
               </div>
               <div class="sheet-heading-actions">
+                <button class="danger-button small" id="deleteHealthDetailCard" type="button" hidden>删除此卡</button>
                 <button class="secondary-button small" id="configureHealthDetail" type="button" hidden>配置口径</button>
                 <button class="sheet-close" id="closeHealthDetail" type="button" aria-label="关闭">×</button>
               </div>
@@ -555,19 +556,26 @@
                 <span>卡片名称</span>
                 <input class="text-input" id="customHealthName" type="text" maxlength="16" placeholder="例如：现金安全垫" />
               </label>
-              <label class="control-field">
-                <span>分母口径</span>
-                <select class="control-select" id="customHealthDenominator">
-                  <option value="assets">总资产</option>
-                  <option value="net">净资产</option>
-                  <option value="custom">指定类型集合</option>
-                </select>
+              <label class="control-field custom-health-note-field">
+                <span>备注</span>
+                <textarea class="text-input" id="customHealthNote" maxlength="40" rows="2" placeholder="例如：流动资金"></textarea>
               </label>
-              <div class="custom-health-scope-tabs" id="customHealthScopeTabs" hidden>
-                <button class="secondary-button small active" data-custom-health-scope-part="numerator" type="button">分子范围</button>
-                <button class="secondary-button small" data-custom-health-scope-part="denominator" type="button">分母范围</button>
+              <div class="custom-health-controls">
+                <div class="custom-health-scope-tabs" id="customHealthScopeTabs">
+                  <button class="secondary-button small active" data-custom-health-scope-part="numerator" type="button">分子范围</button>
+                  <button class="secondary-button small" data-custom-health-scope-part="denominator" type="button">分母范围</button>
+                </div>
+                <div class="custom-health-basis-tabs" id="customHealthBasisTabs" role="group" aria-label="自定义占比计算口径">
+                  <button class="secondary-button small active" data-custom-health-basis="balance" type="button">按余额</button>
+                  <button class="secondary-button small" data-custom-health-basis="cost" type="button">按成本</button>
               </div>
-              <button class="secondary-button danger small" id="deleteCustomHealthCard" type="button">删除此卡</button>
+              <label class="control-field custom-health-view-field">
+                  <select class="control-select" id="customHealthAccountView">
+                    <option value="group">按分组</option>
+                    <option value="type">按分类</option>
+                  </select>
+                </label>
+              </div>
             </div>
             <div id="healthScopeManager" class="health-scope-list"></div>
             <div class="type-editor-actions">

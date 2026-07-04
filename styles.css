@@ -1898,6 +1898,7 @@ textarea {
 }
 
 .health-card {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
@@ -1970,14 +1971,58 @@ textarea {
 
 .custom-health-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(150px, 0.55fr) auto;
-  gap: 8px;
-  align-items: end;
+  grid-template-columns: minmax(0, 280px) minmax(0, 1fr);
+  gap: 10px 14px;
+  align-items: start;
   margin: 0 0 10px;
+  max-width: 100%;
+}
+
+.custom-health-form .control-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 5px;
+  min-width: 0;
+}
+
+.custom-health-form .control-field > span {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.custom-health-form .text-input,
+.custom-health-form .control-select {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+}
+
+.custom-health-note-field textarea {
+  min-height: 40px;
+  height: 40px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.custom-health-controls {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
 }
 
 .custom-health-scope-tabs {
-  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.custom-health-basis-tabs {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -1986,6 +2031,100 @@ textarea {
 .custom-health-scope-tabs[hidden],
 .custom-health-form[hidden] {
   display: none;
+}
+
+.custom-health-form.is-fixed > .control-field {
+  display: none;
+}
+
+.custom-health-form.is-fixed {
+  grid-template-columns: 1fr;
+}
+
+.custom-health-basis-tabs[hidden] {
+  display: none;
+}
+
+.custom-health-scope-tabs .secondary-button.active,
+.custom-health-basis-tabs .secondary-button.active {
+  border-color: rgba(37, 99, 235, 0.28);
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--blue);
+}
+
+.custom-health-view-field {
+  display: grid;
+  grid-template-columns: 112px;
+  align-items: center;
+  margin: 0;
+  margin-left: auto;
+}
+
+#customHealthAccountView {
+  width: 112px;
+  min-width: 112px;
+}
+
+.health-account-scope-group {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fbfcff;
+}
+
+.health-account-scope-heading,
+.health-account-scope-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.health-account-scope-heading input,
+.health-account-scope-item input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--blue);
+}
+
+.health-account-scope-heading b,
+.health-account-scope-item b {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 12px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.health-account-scope-heading small,
+.health-account-scope-item small {
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.15;
+}
+
+.health-account-scope-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 6px;
+}
+
+.health-account-scope-item {
+  min-height: 30px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  background: #fff;
+}
+
+#healthScopeSheet .account-sheet {
+  overflow-x: hidden;
 }
 
 .historical-report-actions {
@@ -2225,7 +2364,7 @@ textarea {
 }
 
 .heatmap-month-control .control-select {
-  width: 64px;
+  width: 78px;
 }
 
 .heatmap-controls #snapshotHeatmapMode {
@@ -2233,7 +2372,7 @@ textarea {
 }
 
 .heatmap-controls #snapshotHeatmapMetric {
-  width: 88px;
+  width: 108px;
 }
 
 .heatmap-range-control .control-select {
@@ -2987,6 +3126,42 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 10px;
   background: #fbfcff;
+}
+
+.health-scope-account-groups {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #f8fbff, #fff);
+}
+
+.health-scope-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.health-scope-section-heading b {
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.health-scope-section-heading span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.health-scope-account-group-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
+  gap: 8px;
+}
+
+.health-scope-account-group-chip {
+  background: #fff;
 }
 
 .health-scope-group-toggle {
@@ -4200,8 +4375,27 @@ select {
   background: linear-gradient(180deg, #f8fbff, #f1f6ff);
 }
 
+.dashboard-account-panel .account-group-rows {
+  display: grid;
+  gap: 0;
+  margin-left: 14px;
+  padding-left: 14px;
+  border-left: 1px solid var(--line-soft);
+}
+
 .dashboard-account-panel .account-detail-row {
+  border-left: 0;
+  border-right: 0;
+  border-radius: 0;
   background: #fff;
+}
+
+.dashboard-account-panel .account-detail-row:first-child {
+  border-top-left-radius: var(--radius-sm);
+}
+
+.dashboard-account-panel .account-detail-row:last-child {
+  border-bottom-left-radius: var(--radius-sm);
 }
 
 .dashboard-account-panel .account-detail-row:hover {
@@ -4624,7 +4818,6 @@ textarea:focus {
   justify-content: flex-start;
 }
 
-.analysis-side .heatmap-controls .control-field:has(#snapshotHeatmapMode),
 .analysis-side .heatmap-range-control,
 .analysis-side .heatmap-active-toggle {
   display: none;
@@ -5237,8 +5430,8 @@ textarea:focus {
   }
 
   .analysis-trend-subheading .trend-control-stack {
-    flex-basis: 100%;
-    justify-content: flex-start;
+    flex: 1 1 340px;
+    justify-content: flex-end;
   }
 
   .account-management-group .account-card {
@@ -5368,6 +5561,27 @@ textarea:focus {
 
   .trend-controls {
     align-items: stretch;
+  }
+
+  .analysis-trend-subheading .trend-control-stack {
+    flex-basis: 100%;
+    justify-content: flex-start;
+  }
+
+  .custom-health-form {
+    grid-template-columns: 1fr;
+  }
+
+  .custom-health-controls {
+    align-items: flex-start;
+  }
+
+  .custom-health-basis-tabs {
+    justify-content: flex-start;
+  }
+
+  .custom-health-view-field {
+    margin-left: 0;
   }
 
   .trend-line-toggles,
