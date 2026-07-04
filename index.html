@@ -7,25 +7,42 @@
     <meta name="description" content="本地资产余额快照记账 PWA" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=135" />
+    <link rel="stylesheet" href="./styles.css?v=136" />
     <title>资产快照本</title>
   </head>
   <body>
+    <svg class="icon-sprite" aria-hidden="true" focusable="false">
+      <symbol id="icon-dashboard" viewBox="0 0 24 24"><path d="M4 13h6v7H4zM14 4h6v16h-6zM4 4h6v5H4z"/></symbol>
+      <symbol id="icon-accounts" viewBox="0 0 24 24"><path d="M5 6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v11A2.5 2.5 0 0 1 16.5 20h-9A2.5 2.5 0 0 1 5 17.5z"/><path d="M8 8h8M8 12h8M8 16h5"/></symbol>
+      <symbol id="icon-analysis" viewBox="0 0 24 24"><path d="M4 17l5-5 4 3 7-8"/><path d="M4 20h16"/></symbol>
+      <symbol id="icon-settings" viewBox="0 0 24 24"><path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7z"/><path d="M19.4 15a8.8 8.8 0 0 0 .1-1 8.8 8.8 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7.6 7.6 0 0 0-1.8-1L15 5.5h-4l-.3 2.6a7.6 7.6 0 0 0-1.8 1l-2.4-1-2 3.4 2 1.5a8.8 8.8 0 0 0-.1 1 8.8 8.8 0 0 0 .1 1l-2 1.5 2 3.4 2.4-1a7.6 7.6 0 0 0 1.8 1l.3 2.6h4l.3-2.6a7.6 7.6 0 0 0 1.8-1l2.4 1 2-3.4z"/></symbol>
+      <symbol id="icon-net" viewBox="0 0 24 24"><path d="M4 13.5 9.5 8l4 4L20 5.5"/><path d="M4 19h16"/></symbol>
+      <symbol id="icon-asset" viewBox="0 0 24 24"><path d="M12 4 4 8l8 4 8-4z"/><path d="m4 12 8 4 8-4M4 16l8 4 8-4"/></symbol>
+      <symbol id="icon-liability" viewBox="0 0 24 24"><path d="M5 7h14v10H5z"/><path d="M8 11h8M8 14h5"/></symbol>
+      <symbol id="icon-trend" viewBox="0 0 24 24"><path d="M4 16.5 9 12l4 3 7-8"/><path d="M4 20h16"/></symbol>
+      <symbol id="icon-distribution" viewBox="0 0 24 24"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M3 19h18"/></symbol>
+      <symbol id="icon-snapshot" viewBox="0 0 24 24"><path d="M7 4h10l3 3v13H4V4z"/><path d="M8 12h8M8 16h5"/></symbol>
+      <symbol id="icon-calendar" viewBox="0 0 24 24"><path d="M5 6h14v14H5z"/><path d="M8 4v4M16 4v4M5 10h14"/></symbol>
+      <symbol id="icon-currency" viewBox="0 0 24 24"><path d="M12 4v16M8 8.5a4 4 0 0 1 4-2.5c2.2 0 4 1.1 4 2.7 0 4.2-8 1.7-8 5.8 0 1.6 1.8 2.7 4 2.7a4.4 4.4 0 0 0 4.2-2.6"/></symbol>
+      <symbol id="icon-filter" viewBox="0 0 24 24"><path d="M4 6h16l-6 7v5l-4 2v-7z"/></symbol>
+      <symbol id="icon-delete" viewBox="0 0 24 24"><path d="M5 7h14M9 7V5h6v2M8 10v9h8v-9"/></symbol>
+      <symbol id="icon-custom" viewBox="0 0 24 24"><path d="M12 4l2.3 4.7 5.2.8-3.8 3.7.9 5.2L12 16l-4.6 2.4.9-5.2-3.8-3.7 5.2-.8z"/></symbol>
+    </svg>
     <div class="app-shell">
       <aside class="sidebar" aria-label="应用导航">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">资</span>
           <div>
             <strong>资产快照本</strong>
-            <span>v0.2.0 / res v135</span>
+            <span>v0.2.0 / res v136</span>
           </div>
         </div>
 
         <nav class="tabs" aria-label="主导航">
-          <button class="tab active" data-tab="dashboard" type="button">总览</button>
-          <button class="tab" data-tab="accounts" type="button">账户</button>
-          <button class="tab" data-tab="analysis" type="button">分析</button>
-          <button class="tab" data-tab="settings" type="button">设置</button>
+          <button class="tab active" data-tab="dashboard" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-dashboard"></use></svg><span>总览</span></button>
+          <button class="tab" data-tab="accounts" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-accounts"></use></svg><span>账户</span></button>
+          <button class="tab" data-tab="analysis" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-analysis"></use></svg><span>分析</span></button>
+          <button class="tab" data-tab="settings" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg><span>设置</span></button>
         </nav>
 
         <div class="sidebar-note">
@@ -40,7 +57,7 @@
             <span class="brand-mark" aria-hidden="true">资</span>
             <div>
               <strong>资产快照本</strong>
-              <span>v0.2.0 / res v135</span>
+              <span>v0.2.0 / res v136</span>
             </div>
           </div>
           <div class="page-title">
@@ -55,19 +72,20 @@
             <div class="dashboard-layout">
               <div class="dashboard-main">
                 <div class="dashboard-hero-grid">
-                  <article class="metric-card net-worth-hero">
-            <span>最新净值</span>
+                  <article class="metric-card net-worth-hero metric-card--net">
+            <span><svg class="ui-icon" aria-hidden="true"><use href="#icon-net"></use></svg>最新净值</span>
             <strong id="netWorthValue">-</strong>
+            <em id="netWorthDeltaText" class="net-worth-delta">暂无上次快照对比</em>
             <small id="latestDateText">暂无快照</small>
           </article>
                   <div class="metric-grid dashboard-kpis">
-                    <article class="metric-card">
-                      <span>资产合计</span>
+                    <article class="metric-card metric-card--asset">
+                      <span><svg class="ui-icon" aria-hidden="true"><use href="#icon-asset"></use></svg>资产合计</span>
                       <strong id="assetValue">-</strong>
                       <small>仅统计计入净值账户</small>
                     </article>
-                    <article class="metric-card">
-                      <span>负债合计</span>
+                    <article class="metric-card metric-card--liability">
+                      <span><svg class="ui-icon" aria-hidden="true"><use href="#icon-liability"></use></svg>负债合计</span>
                       <strong id="liabilityValue">-</strong>
                       <small>信用卡、贷款等账户</small>
                     </article>
@@ -76,7 +94,7 @@
 
         <section class="panel dashboard-trend-panel">
           <div class="panel-heading">
-            <h2>资产趋势</h2>
+            <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-trend"></use></svg>资产趋势</h2>
             <span id="trendSummary"></span>
           </div>
           <div class="trend-controls" aria-label="趋势图显示控制">
@@ -97,11 +115,13 @@
 
                 <section class="panel dashboard-account-panel">
           <div class="panel-heading">
-            <h2>账户明细</h2>
-            <div class="panel-actions">
+            <div>
+              <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-accounts"></use></svg>账户明细</h2>
               <span id="accountCountText"></span>
+            </div>
+            <div class="panel-actions">
               <button class="secondary-button small" id="toggleOverviewGroups" type="button">全部展开</button>
-              <button class="secondary-button" id="toggleOverviewAccountSort" type="button">排序</button>
+              <button class="secondary-button small" id="toggleOverviewAccountSort" type="button">排序</button>
             </div>
           </div>
           <div id="accountTable" class="table-like"></div>
@@ -111,7 +131,7 @@
               <aside class="dashboard-side">
           <section class="panel">
             <div class="panel-heading">
-              <h2>分组占比</h2>
+              <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-distribution"></use></svg>分组占比</h2>
               <span>按最新快照</span>
             </div>
             <div id="groupBreakdown" class="bars"></div>
@@ -119,7 +139,7 @@
 
           <section class="panel">
             <div class="panel-heading">
-              <h2>账户类型占比</h2>
+              <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-distribution"></use></svg>账户类型占比</h2>
               <span>按类型大类</span>
             </div>
             <div id="typeBreakdown" class="bars"></div>
@@ -133,7 +153,7 @@
           <section class="panel account-list-panel">
           <div class="panel-heading">
             <div>
-              <h2>账户列表</h2>
+              <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-accounts"></use></svg>账户列表</h2>
               <span id="accountSortHint">按分组展示</span>
             </div>
             <div class="panel-actions">
@@ -147,7 +167,7 @@
         <section class="panel snapshot-launcher-panel accounts-action-card">
           <div class="panel-heading">
             <div>
-              <h2>余额快照</h2>
+              <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-snapshot"></use></svg>余额快照</h2>
               <span>手动记录各账户在某一天的余额</span>
             </div>
           </div>
@@ -157,7 +177,7 @@
         <section class="panel accounts-action-card">
           <div class="panel-heading">
             <div>
-              <h2>历史快照</h2>
+              <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-calendar"></use></svg>历史快照</h2>
               <span id="snapshotHistoryEntrySummary">查看、搜索和管理历史记录</span>
             </div>
           </div>
@@ -291,7 +311,7 @@
           <section class="account-sheet snapshot-history-sheet" role="dialog" aria-modal="true" aria-labelledby="snapshotHistoryTitle">
             <div class="sheet-heading">
               <div>
-                <h2 id="snapshotHistoryTitle">历史快照</h2>
+                <h2 id="snapshotHistoryTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-calendar"></use></svg>历史快照</h2>
                 <span id="snapshotHistoryHint">按月份分组</span>
               </div>
               <button class="sheet-close" id="closeSnapshotHistory" type="button" aria-label="关闭">×</button>
@@ -332,7 +352,7 @@
         <section class="panel analysis-report-launcher">
           <div class="panel-heading">
             <div>
-              <h2>历史分析报告</h2>
+              <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-calendar"></use></svg>历史分析报告</h2>
               <span>选择某次历史快照，按当时数据生成分析报告</span>
             </div>
             <button class="secondary-button" id="openHistoricalReportPicker" type="button">查看历史分析报告</button>
@@ -344,7 +364,7 @@
             <section class="panel analysis-health-panel">
               <div class="panel-heading">
                 <div>
-                  <h2>资产健康</h2>
+                  <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-asset"></use></svg>资产健康</h2>
                   <span>按最新快照计算</span>
                 </div>
                 <button class="secondary-button small" id="addCustomHealthCard" type="button">新增占比卡</button>
@@ -355,14 +375,14 @@
             <section class="panel analysis-trend-panel">
               <div class="panel-heading analysis-trend-heading">
                 <div>
-                  <h2>趋势分析</h2>
+                  <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-trend"></use></svg>趋势分析</h2>
                   <span>按历史快照查看多维趋势变化</span>
                 </div>
               </div>
               <div class="analysis-trend-block">
                 <div class="analysis-trend-subheading">
                   <div>
-                    <b>余额成本收益趋势</b>
+                    <b><svg class="ui-icon" aria-hidden="true"><use href="#icon-trend"></use></svg>余额成本收益趋势</b>
                     <span>按历史快照查看余额、成本和收益变化</span>
                   </div>
                   <div class="trend-control-stack">
@@ -401,7 +421,7 @@
               <div class="analysis-trend-block analysis-health-trend-block">
                 <div class="analysis-trend-subheading">
                   <div>
-                    <b>资产健康趋势</b>
+                    <b><svg class="ui-icon" aria-hidden="true"><use href="#icon-asset"></use></svg>资产健康趋势</b>
                     <span>同步资产健康卡配置口径</span>
                   </div>
                   <div class="trend-period-tabs analysis-period-tabs" role="group" aria-label="资产健康趋势周期">
@@ -420,7 +440,7 @@
             <section class="panel analysis-treemap-panel">
               <div class="panel-heading">
                 <div>
-                  <h2>资产结构 Treemap</h2>
+                  <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-distribution"></use></svg>资产结构 Treemap</h2>
                   <span>按分组大类展示，点击矩形查看账户明细</span>
                 </div>
               </div>
@@ -430,7 +450,7 @@
             <section class="panel analysis-gain-panel">
               <div class="panel-heading">
                 <div>
-                  <h2>收益分析</h2>
+                  <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-net"></use></svg>收益分析</h2>
                   <span>按最新快照成本计算账户收益</span>
                 </div>
               </div>
@@ -442,7 +462,7 @@
             <section class="panel analysis-time-panel analysis-side-panel">
               <div class="panel-heading analysis-compact-heading">
                 <div>
-                  <h2>快照日历热力图</h2>
+                  <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-calendar"></use></svg>快照日历热力图</h2>
                   <span id="snapshotHeatmapSummary">按快照日期查看记录密度</span>
                 </div>
                 <div class="heatmap-controls">
@@ -485,7 +505,7 @@
             <section class="panel analysis-side-panel">
               <div class="panel-heading contribution-heading">
                 <div>
-                  <h2>净值变动贡献榜</h2>
+                  <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-net"></use></svg>净值变动贡献榜</h2>
                   <span id="contributionSummary">按周期解释净值变化</span>
                 </div>
                 <div class="trend-period-tabs contribution-period-tabs" role="group" aria-label="净值变动贡献周期">
@@ -509,7 +529,7 @@
             <section class="panel analysis-side-panel">
               <div class="panel-heading">
                 <div>
-                  <h2>多币种暴露</h2>
+                  <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-currency"></use></svg>多币种暴露</h2>
                   <span id="currencyExposureSummary">按最新快照折算统计</span>
                 </div>
               </div>
@@ -522,7 +542,7 @@
           <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="healthDetailTitle">
             <div class="sheet-heading">
               <div>
-                <h2 id="healthDetailTitle">资产健康明细</h2>
+                <h2 id="healthDetailTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-asset"></use></svg>资产健康明细</h2>
                 <span id="healthDetailSubtitle">按最新快照计算</span>
               </div>
               <div class="sheet-heading-actions">
@@ -539,7 +559,7 @@
           <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="healthScopeTitle">
             <div class="sheet-heading">
               <div>
-                <h2 id="healthScopeTitle">负债率计算口径</h2>
+                <h2 id="healthScopeTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-filter"></use></svg>负债率计算口径</h2>
                 <span id="healthScopeSubtitle">显示全部账户类型，勾选要计入负债率分子的分类</span>
               </div>
               <button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button>
@@ -589,7 +609,7 @@
           <section class="account-sheet historical-report-sheet" role="dialog" aria-modal="true" aria-labelledby="historicalReportTitle">
             <div class="sheet-heading">
               <div>
-                <h2 id="historicalReportTitle">历史分析报告</h2>
+                <h2 id="historicalReportTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-calendar"></use></svg>历史分析报告</h2>
                 <span id="historicalReportSubtitle">按历史快照计算</span>
               </div>
               <button class="sheet-close" id="closeHistoricalReport" type="button" aria-label="关闭">×</button>
@@ -606,23 +626,23 @@
         <section class="panel settings-launcher-panel">
           <div class="panel-heading">
             <div>
-              <h2>设置</h2>
+              <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg>设置</h2>
               <span>选择要管理的项目</span>
             </div>
           </div>
           <div class="settings-launcher-grid">
-            <button class="settings-launcher" data-open-sheet="currencySettingsSheet" type="button"><b>货币设置</b><span>主货币及可用货币</span></button>
-            <button class="settings-launcher" data-open-sheet="rateSettingsSheet" type="button"><b>汇率调整</b><span>手动维护换算汇率</span></button>
-            <button class="settings-launcher" data-open-sheet="backupSettingsSheet" type="button"><b>数据管理</b><span>数据备份与导入</span></button>
-            <button class="settings-launcher" data-open-sheet="typeSettingsSheet" type="button"><b>账户类型</b><span>管理大类与小类</span></button>
-            <button class="settings-launcher" data-open-sheet="tagSettingsSheet" type="button"><b>快照标签</b><span>管理快照原因标签</span></button>
-            <button class="settings-launcher" id="openFeatureIntro" type="button"><b>功能介绍</b><span>了解工具用途</span></button>
+            <button class="settings-launcher" data-open-sheet="currencySettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-currency"></use></svg></i><b>货币设置</b><span>主货币及可用货币</span></button>
+            <button class="settings-launcher" data-open-sheet="rateSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-trend"></use></svg></i><b>汇率调整</b><span>手动维护换算汇率</span></button>
+            <button class="settings-launcher" data-open-sheet="backupSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-snapshot"></use></svg></i><b>数据管理</b><span>数据备份与导入</span></button>
+            <button class="settings-launcher" data-open-sheet="typeSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-accounts"></use></svg></i><b>账户类型</b><span>管理大类与小类</span></button>
+            <button class="settings-launcher" data-open-sheet="tagSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-filter"></use></svg></i><b>快照标签</b><span>管理快照原因标签</span></button>
+            <button class="settings-launcher" id="openFeatureIntro" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg></i><b>功能介绍</b><span>了解工具用途</span></button>
           </div>
         </section>
 
         <div class="sheet-backdrop settings-sheet-backdrop" id="currencySettingsSheet" hidden>
           <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="currencySettingsTitle">
-            <div class="sheet-heading"><div><h2 id="currencySettingsTitle">货币设置</h2><span>设置主货币及账户可选币种</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
+            <div class="sheet-heading"><div><h2 id="currencySettingsTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-currency"></use></svg>货币设置</h2><span>设置主货币及账户可选币种</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
             <form id="currencyForm" class="form-grid compact">
               <label>主货币<select id="baseCurrency" name="baseCurrency"></select></label>
               <div>
@@ -649,7 +669,7 @@
 
         <div class="sheet-backdrop settings-sheet-backdrop" id="rateSettingsSheet" hidden>
           <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="rateSettingsTitle">
-            <div class="sheet-heading"><div><h2 id="rateSettingsTitle">汇率调整</h2><span id="rateSettingsSubtitle">手动维护各货币汇率</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
+            <div class="sheet-heading"><div><h2 id="rateSettingsTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-trend"></use></svg>汇率调整</h2><span id="rateSettingsSubtitle">手动维护各货币汇率</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
             <form id="rateForm" class="form-grid compact"><div id="rateInputs" class="rate-list"></div><button class="primary-button" type="submit">保存汇率</button></form>
             <div class="currency-config-actions">
               <h3>货币配置</h3>
@@ -666,7 +686,7 @@
 
         <div class="sheet-backdrop settings-sheet-backdrop" id="backupSettingsSheet" hidden>
           <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="backupSettingsTitle">
-            <div class="sheet-heading"><div><h2 id="backupSettingsTitle">数据管理</h2><span>数据备份与导入，本地文件不上传</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
+            <div class="sheet-heading"><div><h2 id="backupSettingsTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-snapshot"></use></svg>数据管理</h2><span>数据备份与导入，本地文件不上传</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
             <div class="action-grid">
               <button class="secondary-button" id="exportJson" type="button">导出 JSON 备份</button>
               <button class="secondary-button" id="copyJson" type="button">复制 JSON 备份</button>
@@ -718,7 +738,7 @@
 
         <div class="sheet-backdrop settings-sheet-backdrop" id="typeSettingsSheet" hidden>
           <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="typeSettingsTitle">
-            <div class="sheet-heading"><div><h2 id="typeSettingsTitle">账户类型</h2><span>自定义大类及其小类</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
+            <div class="sheet-heading"><div><h2 id="typeSettingsTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-accounts"></use></svg>账户类型</h2><span>自定义大类及其小类</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
           <div class="manager-toolbar">
             <span id="typeManageHint">管理账户类型分类</span>
             <div class="panel-actions">
@@ -756,7 +776,7 @@
 
         <div class="sheet-backdrop settings-sheet-backdrop" id="tagSettingsSheet" hidden>
           <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="tagSettingsTitle">
-            <div class="sheet-heading"><div><h2 id="tagSettingsTitle">快照标签</h2><span>自定义快照原因标签</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
+            <div class="sheet-heading"><div><h2 id="tagSettingsTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-filter"></use></svg>快照标签</h2><span>自定义快照原因标签</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
             <div class="manager-toolbar">
               <span id="tagManageHint">管理快照标签</span>
               <div class="panel-actions">
@@ -798,6 +818,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=135" defer></script>
+    <script src="./app.js?v=136" defer></script>
   </body>
 </html>

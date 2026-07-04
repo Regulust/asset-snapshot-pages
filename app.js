@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v0.2.0 / res v135";
+const APP_VERSION = "v0.2.0 / res v136";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -861,6 +861,10 @@ function latestSnapshot() {
   return [...state.snapshots].sort((a, b) => b.date.localeCompare(a.date))[0] || null;
 }
 
+function previousSnapshot() {
+  return [...state.snapshots].sort((a, b) => b.date.localeCompare(a.date))[1] || null;
+}
+
 function accountCurrentBalance(accountId) {
   const today = state.snapshots.find((snapshot) => snapshot.date === localDateString());
   if (today?.balances?.[accountId] !== undefined) return today.balances[accountId];
@@ -1015,11 +1019,26 @@ function renderDashboard() {
   $("#privacyToggle").textContent = state.settings.privacy ? "显示金额" : "隐藏金额";
 
   const latest = latestSnapshot();
+  const previous = previousSnapshot();
   const total = snapshotTotal(latest);
+  const previousTotal = snapshotTotal(previous);
   $("#netWorthValue").innerHTML = moneySpan(formatMoney(total.net));
   $("#assetValue").innerHTML = moneySpan(formatMoney(total.assets));
   $("#liabilityValue").innerHTML = moneySpan(formatMoney(total.liabilities));
-  $("#latestDateText").textContent = latest ? `最新快照：${latest.date}` : "暂无快照";
+  $("#latestDateText").textContent = latest ? `最新快照 ${latest.date}` : "暂无快照";
+  const netWorthDeltaText = $("#netWorthDeltaText");
+  netWorthDeltaText.classList.remove("is-positive", "is-negative", "is-neutral");
+  if (latest && previous) {
+    const delta = total.net - previousTotal.net;
+    const ratio = previousTotal.net ? (delta / Math.abs(previousTotal.net)) * 100 : 0;
+    const sign = delta >= 0 ? "+" : "-";
+    const deltaMoney = formatMoney(Math.abs(delta)).replace(/\s+/, "");
+    netWorthDeltaText.classList.add(delta >= 0 ? "is-positive" : "is-negative");
+    netWorthDeltaText.innerHTML = `较上次快照 <span class="delta-value">${sign}${moneySpan(deltaMoney)}</span> <span class="delta-rate">${sign}${Math.abs(ratio).toFixed(1)}%</span>`;
+  } else {
+    netWorthDeltaText.classList.add("is-neutral");
+    netWorthDeltaText.textContent = latest ? "暂无上次快照对比" : "记录快照后显示净值变化";
+  }
   const visibleCount = state.accounts.filter((account) => !account.archived).length;
   $("#accountCountText").textContent = `${visibleCount} 个显示账户`;
 
@@ -1192,6 +1211,24 @@ function customHealthRowValue(row, basis = "balance") {
   return Math.max(0, row.converted || 0);
 }
 
+function spriteIconSvg(name) {
+  return `<svg class="ui-icon" aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
+}
+
+function setIconHeading(element, iconName, text) {
+  if (!element) return;
+  element.innerHTML = `${spriteIconSvg(iconName)}${escapeHtml(text)}`;
+}
+
+function healthCardIconName(key) {
+  if (key === "liability") return "liability";
+  if (key === "cash") return "asset";
+  if (key === "investment") return "trend";
+  if (key === "account-concentration") return "accounts";
+  if (key === "group-concentration") return "distribution";
+  return "custom";
+}
+
 function analysisHealthCards(total) {
   const metrics = healthMetricValues(total);
   const fixedCards = [
@@ -1226,8 +1263,8 @@ function analysisHealthCards(total) {
 
 function healthCardsHtml(total, { interactive = true } = {}) {
   return analysisHealthCards(total).map((card) => `
-    <article class="health-card ${isCustomHealthCardKey(card.key) ? "is-custom" : ""}"${interactive ? ` data-health-detail="${card.key}" role="button" tabindex="0"` : ""}>
-      <span>${escapeHtml(card.label)}</span>
+    <article class="health-card ${isCustomHealthCardKey(card.key) ? "is-custom" : ""}" data-health-kind="${escapeHtml(healthCardIconName(card.key))}"${interactive ? ` data-health-detail="${card.key}" role="button" tabindex="0"` : ""}>
+      <span class="health-card-label"><i class="health-card-icon" aria-hidden="true"></i>${escapeHtml(card.label)}</span>
       <b>${escapeHtml(card.value)}</b>
       <small>${escapeHtml(card.hint)}</small>
     </article>
@@ -1384,8 +1421,8 @@ function gainAnalysisHtml(total, options = {}) {
       tone: summary.totalGain >= 0 ? "positive" : "negative",
     },
   ];
-  const positiveSummaryText = `共 <b>${summary.positiveRows.length}</b> 个账户 · 总额 <b>${compactSignedMoneyHtml(summary.positiveGain)}</b>`;
-  const negativeSummaryText = `共 <b>${summary.negativeRows.length}</b> 个账户 · 总额 <b>${compactSignedMoneyHtml(-summary.negativeGain)}</b>`;
+  const positiveSummaryText = `${summary.positiveRows.length} 账户 · ${compactSignedMoneyHtml(summary.positiveGain)}`;
+  const negativeSummaryText = `${summary.negativeRows.length} 账户 · ${compactSignedMoneyHtml(-summary.negativeGain)}`;
   return `
     ${filterHtml}
     <div class="gain-summary-grid">
@@ -1428,7 +1465,7 @@ function openHealthDetail(kind) {
   activeHealthDetailKind = kind;
   const total = snapshotTotal(latestSnapshot());
   const detail = healthDetailData(kind, total);
-  $("#healthDetailTitle").textContent = detail.title;
+  setIconHeading($("#healthDetailTitle"), "asset", detail.title);
   $("#healthDetailSubtitle").textContent = detail.subtitle;
   const configureButton = $("#configureHealthDetail");
   configureButton.hidden = !(HEALTH_CARD_KEYS.includes(kind) || isCustomHealthCardKey(kind));
@@ -1753,7 +1790,7 @@ function renderHealthScopeManager() {
     !draft.excludedTypeIds.includes(type.id)
   ).length, 0);
   const selectedAccountCount = state.accounts.filter((account) => accountScopeChecked(account, draft)).length;
-  $("#healthScopeTitle").textContent = meta.title;
+  setIconHeading($("#healthScopeTitle"), "filter", meta.title);
   $("#healthScopeSubtitle").textContent = meta.subtitle;
   $("#healthScopeHint").textContent = groups.length
     ? `\u5df2\u8ba1\u5165 ${selectedAccountCount} / ${state.accounts.length} \u4e2a\u8d26\u6237 \u00b7 ${meta.defaultText}`
@@ -3699,8 +3736,7 @@ function renderSnapshotForm() {
   $("#snapshotForm button[type='submit']").textContent = editingSnapshot ? "保存修改" : "保存快照";
   $("#snapshotDate").value = editingSnapshot?.date || $("#snapshotDate").value || localDateString();
   const date = $("#snapshotDate").value;
-  const dateSnapshot = state.snapshots.find((snapshot) => snapshot.date === date);
-  const sourceSnapshot = editingSnapshot || dateSnapshot || latestSnapshot();
+  const sourceSnapshot = snapshotFormSource(date, editingSnapshot);
   syncSnapshotMetaFields();
   const activeAccounts = state.accounts.filter((account) => !account.archived);
   const grouped = activeAccounts.reduce((result, account) => {
@@ -4895,6 +4931,29 @@ function baselineBalancesForDate(date) {
   return { ...(previous?.balances || {}) };
 }
 
+function baselineCostsForDate(date) {
+  const previousSnapshots = [...state.snapshots]
+    .filter((snapshot) => snapshot.date < date)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  return Object.fromEntries(state.accounts.flatMap((account) => {
+    const snapshotWithCost = previousSnapshots.find((snapshot) => snapshot.costs && Object.hasOwn(snapshot.costs, account.id));
+    const snapshotCost = snapshotWithCost ? optionalNumber(snapshotWithCost.costs[account.id]) : null;
+    const accountCost = optionalNumber(account.costBasis);
+    const cost = snapshotCost ?? accountCost;
+    return cost === null ? [] : [[account.id, cost]];
+  }));
+}
+
+function snapshotFormSource(date, editingSnapshot = null) {
+  const dateSnapshot = state.snapshots.find((snapshot) => snapshot.date === date);
+  const snapshot = editingSnapshot || dateSnapshot;
+  return {
+    ...(snapshot || {}),
+    balances: { ...baselineBalancesForDate(date), ...(snapshot?.balances || {}) },
+    costs: { ...baselineCostsForDate(date), ...(snapshot?.costs || {}) },
+  };
+}
+
 function getSnapshotForDate(date) {
   const matches = state.snapshots.filter((snapshot) => snapshot.date === date);
   if (matches.length > 0) {
@@ -4908,13 +4967,13 @@ function getSnapshotForDate(date) {
       state.snapshots = state.snapshots.filter((item) => item.date !== date || item === snapshot);
     }
     snapshot.balances = { ...baselineBalancesForDate(date), ...(snapshot.balances || {}) };
-    snapshot.costs = { ...(snapshot.costs || {}) };
+    snapshot.costs = { ...baselineCostsForDate(date), ...(snapshot.costs || {}) };
     snapshot.rates = { ...(snapshot.rates || state.settings.rates) };
     snapshot.tags = Array.isArray(snapshot.tags) ? snapshot.tags : parseTags(snapshot.tags || "");
     snapshot.note = snapshot.note || "";
     return snapshot;
   }
-  const snapshot = { id: id(), date, balances: baselineBalancesForDate(date), costs: {}, rates: { ...state.settings.rates }, tags: [], note: "" };
+  const snapshot = { id: id(), date, balances: baselineBalancesForDate(date), costs: baselineCostsForDate(date), rates: { ...state.settings.rates }, tags: [], note: "" };
   state.snapshots.push(snapshot);
   return snapshot;
 }
@@ -5390,7 +5449,7 @@ function bindEvents() {
   $("#snapshotDate").addEventListener("change", () => {
     snapshotInlineTagAdding = false;
     snapshotInlineTagDraft = "";
-    syncSnapshotMetaFields();
+    renderSnapshotForm();
   });
   $("#openSnapshotRates").addEventListener("click", openSnapshotRateDialog);
   $("#applySnapshotRates").addEventListener("click", () => closeSnapshotRateDialog({ apply: true }));
@@ -6572,9 +6631,9 @@ function openSnapshotHistorySheet(mode = "edit") {
     snapshotManageMode = false;
     selectedSnapshotIds.clear();
     showAllSnapshots = true;
-    $("#snapshotHistoryTitle").textContent = "\u9009\u62e9\u5386\u53f2\u5feb\u7167";
+    setIconHeading($("#snapshotHistoryTitle"), "calendar", "\u9009\u62e9\u5386\u53f2\u5feb\u7167");
   } else {
-    $("#snapshotHistoryTitle").textContent = "\u5386\u53f2\u5feb\u7167";
+    setIconHeading($("#snapshotHistoryTitle"), "calendar", "\u5386\u53f2\u5feb\u7167");
   }
   renderSnapshots();
   $("#snapshotHistorySheet").hidden = false;

@@ -19,8 +19,8 @@
   --shadow-soft: 0 10px 30px rgba(34, 58, 114, 0.07);
   --radius: 12px;
   --radius-sm: 8px;
-  --sheet-width: 560px;
-  --sheet-vw: 50vw;
+  --sheet-width: 640px;
+  --sheet-vw: 58vw;
   --text-page-title: clamp(30px, 3.2vw, 38px);
   --text-module-title: 18px;
   --text-section-title: 15px;
@@ -28,6 +28,11 @@
   --text-body: 13px;
   --text-support: 12px;
   --text-caption: 11px;
+  --icon-nav: 18px;
+  --icon-heading: 18px;
+  --icon-section: 15px;
+  --icon-card: 14px;
+  --icon-badge: 24px;
   --weight-strong: 800;
   --weight-title: 700;
   --weight-body: 500;
@@ -35,6 +40,7 @@
   --density-button: 38px;
   --density-compact: 30px;
   --density-icon: 32px;
+  --icon-size: var(--icon-heading);
 }
 
 * {
@@ -60,6 +66,26 @@ button,
 input,
 select {
   font: inherit;
+}
+
+.icon-sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+.ui-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vertical-align: -0.18em;
 }
 
 .app-shell {
@@ -198,11 +224,13 @@ h2 {
   display: flex;
   align-items: center;
   justify-content: flex-start;
+  gap: 10px;
   min-height: 42px;
   border-color: transparent;
   padding: 0 12px;
   background: transparent;
   color: #4d5b73;
+  font-weight: 800;
 }
 
 .tab.active,
@@ -216,6 +244,17 @@ h2 {
   border-color: transparent;
   background: var(--blue-soft);
   color: var(--blue-dark);
+  box-shadow: inset 3px 0 0 var(--blue);
+}
+
+.tab .ui-icon {
+  width: var(--icon-nav);
+  height: var(--icon-nav);
+  color: #7b8aa3;
+}
+
+.tab.active .ui-icon {
+  color: var(--blue);
 }
 
 .tab:focus-visible,
@@ -316,9 +355,19 @@ main {
 
 .metric-card > span {
   grid-area: label;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   align-self: end;
   font-weight: 600;
   color: var(--ink);
+}
+
+.metric-card > span .ui-icon,
+.panel-heading h2 .ui-icon,
+.sheet-heading h2 .ui-icon,
+.analysis-trend-subheading b .ui-icon {
+  color: var(--blue);
 }
 
 .metric-card > small {
@@ -337,6 +386,41 @@ main {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.panel-heading h2,
+.sheet-heading h2,
+.analysis-trend-subheading b {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.panel-heading h2 .ui-icon,
+.sheet-heading h2 .ui-icon {
+  width: var(--icon-heading);
+  height: var(--icon-heading);
+}
+
+.analysis-trend-subheading b .ui-icon,
+.metric-card > span .ui-icon,
+.settings-launcher-icon .ui-icon {
+  width: var(--icon-card);
+  height: var(--icon-card);
+}
+
+.analysis-trend-subheading b .ui-icon {
+  width: var(--icon-section);
+  height: var(--icon-section);
+}
+
+.panel-heading > div,
+.sheet-heading > div,
+.analysis-trend-subheading > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
 }
 
 .form-grid,
@@ -674,12 +758,14 @@ textarea {
   align-items: center;
   justify-content: flex-end;
   flex: 0 0 auto;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
 }
 
 .panel-actions .secondary-button,
 .panel-actions .primary-button {
+  flex: 0 0 auto;
   white-space: nowrap;
 }
 
@@ -717,7 +803,7 @@ textarea {
 
 .snapshot-history-sheet,
 .historical-report-sheet {
-  width: min(760px, 68vw);
+  width: min(var(--sheet-width), var(--sheet-vw));
 }
 
 .sheet-heading {
@@ -731,7 +817,10 @@ textarea {
 .sheet-heading-actions {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
   gap: 10px;
+  min-width: 0;
 }
 
 .sheet-close {
@@ -799,7 +888,12 @@ textarea {
 
 .settings-launcher {
   display: grid;
-  gap: 5px;
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas:
+    "icon title"
+    "icon desc";
+  align-items: center;
+  gap: 4px 11px;
   min-height: 92px;
   padding: 15px;
   border: 1px solid var(--line);
@@ -813,6 +907,22 @@ textarea {
 .settings-launcher:hover {
   border-color: #9db8f5;
   background: #f4f7ff;
+}
+
+.settings-launcher-icon {
+  grid-area: icon;
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.settings-launcher-icon .ui-icon {
+  width: var(--icon-card);
+  height: var(--icon-card);
 }
 
 .group-heading-actions {
@@ -832,10 +942,14 @@ textarea {
 }
 
 .settings-launcher b {
+  grid-area: title;
+  min-width: 0;
   font-size: 15px;
 }
 
 .settings-launcher span {
+  grid-area: desc;
+  min-width: 0;
   color: var(--muted);
 }
 
@@ -1602,7 +1716,6 @@ textarea {
   border: 0;
   border-top: 1px solid var(--line);
   border-radius: 0;
-  padding-left: 40px;
 }
 
 .account-management-group .account-card b {
@@ -1869,13 +1982,25 @@ textarea {
 .bar-line {
   display: grid;
   gap: 6px;
+  min-width: 0;
 }
 
 .bar-info {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
   gap: 10px;
-  font-size: 14px;
+  min-width: 0;
+}
+
+.bar-info span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bar-info span:first-child::before {
+  content: none;
 }
 
 .bar-track {
@@ -2273,7 +2398,8 @@ textarea {
 .contribution-total-card span,
 .contribution-total-card small {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-support);
+  line-height: 1.35;
 }
 
 .contribution-total-card span {
@@ -2287,6 +2413,7 @@ textarea {
   align-self: center;
   color: var(--ink);
   font-size: 18px;
+  line-height: 1.08;
   text-align: right;
 }
 
@@ -2308,12 +2435,18 @@ textarea {
   gap: 10px;
 }
 
+@container (max-width: 560px) {
+  .contribution-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
 .contribution-column {
   display: grid;
   align-content: start;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
-  padding: 9px 10px;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcff;
@@ -2322,7 +2455,8 @@ textarea {
 .contribution-row {
   display: grid;
   gap: 5px;
-  padding: 7px 0;
+  min-width: 0;
+  padding: 8px 0;
   border-top: 1px solid #edf0f5;
 }
 
@@ -2594,14 +2728,16 @@ textarea {
 .currency-exposure-row span {
   min-width: 0;
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 700;
+  font-size: var(--text-support);
+  font-weight: var(--weight-title);
+  line-height: 1.35;
 }
 
 .heatmap-detail-row b,
 .currency-exposure-row b {
   color: var(--ink);
-  font-size: 12px;
+  font-size: var(--text-body);
+  line-height: 1.3;
   text-align: right;
 }
 
@@ -2613,6 +2749,7 @@ textarea {
 .currency-exposure-card {
   display: grid;
   gap: 6px;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -2621,7 +2758,7 @@ textarea {
 
 .currency-exposure-track {
   grid-column: 1 / -1;
-  height: 6px;
+  height: 7px;
   overflow: hidden;
   border-radius: 999px;
   background: #edf1f7;
@@ -2981,9 +3118,9 @@ textarea {
 .gain-column {
   display: grid;
   align-content: start;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
-  padding: 9px 10px;
+  padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcff;
@@ -2998,12 +3135,14 @@ textarea {
 
 .gain-column-heading b {
   color: var(--ink);
-  font-size: 14px;
+  font-size: var(--text-item-title);
+  line-height: 1.25;
 }
 
 .gain-column-heading span {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-support);
+  line-height: 1.35;
 }
 
 .gain-column-heading .gain-column-summary {
@@ -3012,8 +3151,8 @@ textarea {
   justify-content: flex-end;
   gap: 0.22em;
   overflow: hidden;
-  font-size: var(--text-support);
-  font-weight: 600;
+  font-size: var(--text-caption);
+  font-weight: var(--weight-body);
   line-height: 1;
   text-align: right;
   text-overflow: ellipsis;
@@ -3024,13 +3163,14 @@ textarea {
   color: inherit;
   font-size: inherit;
   line-height: 1;
-  font-weight: 800;
+  font-weight: var(--weight-title);
 }
 
 .gain-column-summary .money {
   font-size: inherit;
   color: inherit;
   font-weight: inherit;
+  line-height: inherit;
 }
 
 .gain-column-summary.positive {
@@ -3044,7 +3184,8 @@ textarea {
 .gain-row {
   display: grid;
   gap: 5px;
-  padding: 7px 0;
+  min-width: 0;
+  padding: 8px 0;
   border-top: 1px solid #edf0f5;
 }
 
@@ -3064,7 +3205,8 @@ textarea {
 
 .gain-row-heading b {
   color: var(--ink);
-  font-size: 13px;
+  font-size: var(--text-body);
+  line-height: 1.3;
 }
 
 .gain-row-heading b:last-child {
@@ -3088,7 +3230,8 @@ textarea {
 
 .gain-row-meta span:first-child {
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-support);
+  line-height: 1.35;
 }
 
 .gain-track {
@@ -3808,6 +3951,11 @@ h2,
   line-height: 1.22;
 }
 
+.panel-heading h2,
+.sheet-heading h2 {
+  letter-spacing: 0;
+}
+
 .report-section-heading h3,
 .custom-currency-form h3,
 .currency-config-actions h3,
@@ -3840,6 +3988,14 @@ h2,
 .health-scope-group-meta b,
 .settings-launcher b {
   font-size: var(--text-item-title);
+  font-weight: var(--weight-title);
+  line-height: 1.28;
+}
+
+.analysis-trend-subheading b,
+.gain-column-heading b,
+.report-section-heading h3 {
+  font-size: var(--text-section-title);
   font-weight: var(--weight-title);
   line-height: 1.28;
 }
@@ -3922,6 +4078,13 @@ label,
   font-size: var(--text-support);
   font-weight: var(--weight-body);
   line-height: 1.45;
+}
+
+.panel-heading span,
+.sheet-heading span,
+.analysis-trend-subheading span,
+.settings-launcher span {
+  color: var(--muted);
 }
 
 .currency-choice small,
@@ -4095,7 +4258,7 @@ select {
   user-select: none;
 }
 
-/* v0.2.0 / res v135 visual refresh */
+/* v0.2.0 / res v136 visual refresh */
 .page-title {
   min-width: 0;
 }
@@ -4139,6 +4302,63 @@ select {
   border-radius: var(--radius);
   background: rgba(255, 255, 255, 0.9);
   box-shadow: var(--shadow-soft);
+}
+
+.panel,
+.metric-card,
+.settings-launcher,
+.tab,
+.secondary-button,
+.ghost-button,
+.file-button,
+.primary-button,
+.account-card,
+.bar-line,
+.currency-exposure-card,
+.contribution-total-card,
+.gain-column {
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease, transform 0.16s ease;
+}
+
+.panel:hover,
+.metric-card:hover,
+.settings-launcher:hover,
+.account-card:hover,
+.bar-line:hover,
+.currency-exposure-card:hover,
+.contribution-total-card:hover,
+.gain-column:hover {
+  transform: translateY(-1px);
+}
+
+.panel:hover {
+  transform: none;
+}
+
+.sheet-backdrop:not([hidden]) .account-sheet {
+  animation: sheet-slide-in 0.18s ease-out;
+}
+
+@keyframes sheet-slide-in {
+  from {
+    opacity: 0.88;
+    transform: translateX(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }
 
 .panel {
@@ -4192,6 +4412,7 @@ select {
   grid-template-areas:
     "label"
     "value"
+    "delta"
     "note";
   overflow: hidden;
   min-height: 188px;
@@ -4203,6 +4424,20 @@ select {
     #1b5ddf;
   color: #fff;
   box-shadow: 0 24px 48px rgba(47, 99, 223, 0.3);
+}
+
+.net-worth-hero::before {
+  content: "";
+  position: absolute;
+  right: 28px;
+  top: 36px;
+  width: min(240px, 38%);
+  height: 94px;
+  border-radius: 18px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 94'%3E%3Cpath d='M8 68 C34 50 50 58 70 42 S112 28 136 44 176 70 202 42 224 25 232 30' fill='none' stroke='rgba(255,255,255,0.56)' stroke-width='5' stroke-linecap='round'/%3E%3Cpath d='M8 76 C34 58 50 66 70 50 S112 36 136 52 176 78 202 50 224 33 232 38' fill='none' stroke='rgba(255,255,255,0.18)' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  opacity: 0.68;
 }
 
 .net-worth-hero::after {
@@ -4221,6 +4456,7 @@ select {
 }
 
 .net-worth-hero > span,
+.net-worth-hero > em,
 .net-worth-hero > small,
 .net-worth-hero > strong {
   position: relative;
@@ -4231,6 +4467,12 @@ select {
   align-self: start;
   color: rgba(255, 255, 255, 0.76);
   font-size: 13px;
+}
+
+.net-worth-hero > span .ui-icon {
+  width: 20px;
+  height: 20px;
+  color: rgba(255, 255, 255, 0.92);
 }
 
 .net-worth-hero > strong {
@@ -4244,17 +4486,54 @@ select {
 
 .net-worth-hero > strong .money {
   color: #fff;
-  font-weight: 900;
+  font-weight: 800;
   letter-spacing: 0;
 }
 
 .net-worth-hero > small {
+  grid-area: note;
   align-self: end;
   color: rgba(255, 255, 255, 0.8);
   font-weight: 800;
 }
 
+.net-worth-delta {
+  grid-area: delta;
+  align-self: start;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  margin-top: -6px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.net-worth-delta .delta-value,
+.net-worth-delta .delta-rate {
+  font-weight: 900;
+}
+
+.net-worth-delta.is-positive .delta-value,
+.net-worth-delta.is-positive .delta-rate {
+  color: #86efac;
+}
+
+.net-worth-delta.is-negative .delta-value,
+.net-worth-delta.is-negative .delta-rate {
+  color: #fecaca;
+}
+
+.net-worth-delta .money {
+  color: inherit;
+  font-weight: 900;
+}
+
 .dashboard-kpis .metric-card {
+  position: relative;
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
     "label"
@@ -4267,10 +4546,43 @@ select {
   background: rgba(255, 255, 255, 0.92);
 }
 
+.dashboard-kpis .metric-card::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: var(--blue-soft);
+}
+
+.dashboard-kpis .metric-card--asset::before {
+  background: rgba(36, 168, 102, 0.12);
+}
+
+.dashboard-kpis .metric-card--liability::before {
+  background: rgba(224, 82, 82, 0.12);
+}
+
+.dashboard-kpis .metric-card > span .ui-icon {
+  width: 17px;
+  height: 17px;
+}
+
+.dashboard-kpis .metric-card--asset > span .ui-icon {
+  color: var(--green);
+}
+
+.dashboard-kpis .metric-card--liability > span .ui-icon {
+  color: var(--red);
+}
+
 .dashboard-kpis .metric-card strong {
   justify-self: start;
   color: #132042;
   font-size: clamp(21px, 2vw, 28px);
+  font-weight: 750;
   text-align: left;
 }
 
@@ -4337,7 +4649,7 @@ select {
 
 .bar-info {
   align-items: baseline;
-  font-weight: 700;
+  font-weight: var(--weight-title);
 }
 
 .bar-info span:first-child {
@@ -4351,8 +4663,11 @@ select {
 .bar-info span:last-child {
   flex: 0 0 auto;
   color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
+  font-size: var(--text-body);
+  font-weight: var(--weight-title);
+  line-height: 1.3;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .bar-track {
@@ -4362,6 +4677,31 @@ select {
 
 .dashboard-account-panel {
   padding: 18px;
+}
+
+.dashboard-account-panel > .panel-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+.dashboard-account-panel > .panel-heading .panel-actions {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: end;
+  align-items: center;
+  flex-wrap: nowrap;
+  width: auto;
+  min-width: 0;
+  gap: 6px;
+}
+
+.dashboard-account-panel > .panel-heading .secondary-button.small,
+.dashboard-account-panel > .panel-heading .primary-button.small {
+  min-height: 32px;
+  padding-inline: 10px;
+  font-size: 12px;
 }
 
 .dashboard-account-panel .account-group {
@@ -4429,8 +4769,26 @@ select {
 }
 
 .account-list-panel > .panel-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   padding-bottom: 14px;
   border-bottom: 1px solid var(--line-soft);
+}
+
+.account-list-panel > .panel-heading .panel-actions {
+  display: grid !important;
+  grid-template-columns: auto auto;
+  flex-wrap: nowrap !important;
+  width: auto;
+  min-width: 220px;
+  justify-content: flex-end;
+}
+
+.account-list-panel > .panel-heading .panel-actions .secondary-button,
+.account-list-panel > .panel-heading .panel-actions .primary-button {
+  flex: 0 0 auto;
+  width: auto;
 }
 
 .accounts-action-card {
@@ -4494,6 +4852,7 @@ select {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 14px;
   min-height: 62px;
+  padding-left: 18px;
   border: 0;
   border-top: 1px solid var(--line-soft);
   border-radius: 0;
@@ -4501,11 +4860,25 @@ select {
   box-shadow: none;
 }
 
+.account-management-group .account-card > .drag-title {
+  grid-column: 1;
+  grid-row: 1;
+  justify-self: start;
+  width: 100%;
+  text-align: left;
+}
+
+.account-management-group .account-card > .drag-title > div {
+  min-width: 0;
+}
+
 .account-management-group .account-card:hover {
   background: #f8fbff;
 }
 
 .account-card-side {
+  grid-column: 2;
+  grid-row: 1;
   display: grid;
   justify-items: end;
   gap: 3px;
@@ -4526,6 +4899,8 @@ select {
 }
 
 .account-actions {
+  grid-column: 3;
+  grid-row: 1;
   justify-content: flex-end;
 }
 
@@ -4603,6 +4978,11 @@ textarea:focus {
 .type-editor-actions,
 .import-preview-actions {
   position: sticky;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
   bottom: calc(var(--sheet-padding) * -1);
   z-index: 2;
   margin: 18px calc(var(--sheet-padding) * -1) calc(var(--sheet-padding) * -1);
@@ -4610,6 +4990,11 @@ textarea:focus {
   border-top: 1px solid var(--line-soft);
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(14px);
+}
+
+.form-actions .danger-button,
+.type-editor-actions .danger-button {
+  margin-right: auto;
 }
 
 .balance-group {
@@ -4689,6 +5074,7 @@ textarea:focus {
 .analysis-treemap-panel,
 .analysis-gain-panel,
 .analysis-side-panel {
+  container-type: inline-size;
   padding: 18px;
 }
 
@@ -4717,12 +5103,161 @@ textarea:focus {
 }
 
 .analysis-view .health-card {
+  grid-template-columns: minmax(0, 1fr) auto;
   min-height: 76px;
   padding: 14px;
   border-color: var(--line-soft);
   border-radius: var(--radius);
   background: #fff;
   box-shadow: none;
+}
+
+.health-card-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.health-card-icon {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: var(--icon-badge);
+  height: var(--icon-badge);
+  border-radius: 9px;
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.health-card-icon::before,
+.health-card-icon::after {
+  content: "";
+  position: absolute;
+  border-color: currentColor;
+}
+
+.health-card-icon::before {
+  width: 11px;
+  height: 8px;
+  border-width: 0 0 2px 2px;
+  border-style: solid;
+  border-radius: 1px;
+  transform: translateY(-1px) rotate(-45deg);
+}
+
+.health-card-icon::after {
+  width: 4px;
+  height: 4px;
+  border: 2px solid currentColor;
+  border-radius: 50%;
+  transform: translate(5px, -5px);
+}
+
+.health-card[data-health-kind="liability"] .health-card-icon {
+  background: rgba(224, 82, 82, 0.1);
+  color: var(--red);
+}
+
+.health-card[data-health-kind="liability"] .health-card-icon::before {
+  width: 12px;
+  height: 8px;
+  border-width: 2px;
+  transform: none;
+}
+
+.health-card[data-health-kind="liability"] .health-card-icon::after {
+  width: 7px;
+  height: 0;
+  border-width: 0 0 2px;
+  border-radius: 0;
+  transform: none;
+}
+
+.health-card[data-health-kind="asset"] .health-card-icon {
+  background: rgba(36, 168, 102, 0.12);
+  color: var(--green);
+}
+
+.health-card[data-health-kind="asset"] .health-card-icon::before {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+  transform: rotate(45deg);
+}
+
+.health-card[data-health-kind="asset"] .health-card-icon::after {
+  display: none;
+}
+
+.health-card[data-health-kind="trend"] .health-card-icon {
+  background: rgba(237, 167, 46, 0.14);
+  color: #c47b13;
+}
+
+.health-card[data-health-kind="trend"] .health-card-icon::before {
+  width: 12px;
+  height: 7px;
+  border-width: 0 2px 2px 0;
+  transform: translateY(1px) skew(-18deg);
+}
+
+.health-card[data-health-kind="trend"] .health-card-icon::after {
+  width: 4px;
+  height: 4px;
+  border-width: 2px 2px 0 0;
+  border-radius: 0;
+  transform: translate(5px, -5px) rotate(45deg);
+}
+
+.health-card[data-health-kind="accounts"] .health-card-icon::before {
+  width: 12px;
+  height: 8px;
+  border-width: 2px;
+  transform: translate(-2px, 2px);
+}
+
+.health-card[data-health-kind="accounts"] .health-card-icon::after {
+  width: 12px;
+  height: 8px;
+  border-width: 2px;
+  border-radius: 1px;
+  transform: translate(2px, -2px);
+}
+
+.health-card[data-health-kind="distribution"] .health-card-icon::before {
+  width: 12px;
+  height: 12px;
+  border-width: 2px 2px 0 0;
+  border-radius: 50%;
+  transform: rotate(45deg);
+}
+
+.health-card[data-health-kind="distribution"] .health-card-icon::after {
+  width: 6px;
+  height: 12px;
+  border-width: 0 0 0 2px;
+  border-radius: 0;
+  transform: translateX(-2px);
+}
+
+.health-card[data-health-kind="custom"] .health-card-icon {
+  background: rgba(47, 99, 223, 0.1);
+  color: var(--blue-dark);
+}
+
+.health-card[data-health-kind="custom"] .health-card-icon::before {
+  width: 12px;
+  height: 12px;
+  border-width: 2px;
+  transform: rotate(45deg);
+}
+
+.health-card[data-health-kind="custom"] .health-card-icon::after {
+  width: 4px;
+  height: 4px;
+  border-width: 2px;
+  transform: none;
 }
 
 .analysis-view .health-card:hover,
@@ -4732,7 +5267,8 @@ textarea:focus {
 }
 
 .analysis-view .health-card b {
-  color: var(--blue-dark);
+  color: var(--ink);
+  font-weight: var(--weight-title);
 }
 
 .asset-treemap {
@@ -4775,15 +5311,51 @@ textarea:focus {
 
 .analysis-side .contribution-heading {
   display: grid;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "title title"
+    "period lookback";
+  align-items: center;
+  gap: 10px 8px;
+}
+
+.analysis-side .contribution-heading > div:first-child {
+  grid-area: title;
 }
 
 .analysis-side .contribution-period-tabs {
-  width: 100%;
+  grid-area: period;
+  display: grid !important;
+  grid-template-columns: repeat(4, 32px);
+  width: max-content;
+  min-width: 146px;
+  flex-wrap: nowrap;
+  justify-self: start;
+}
+
+.analysis-side .contribution-period-tabs .trend-period {
+  flex: 0 0 32px !important;
+  width: 32px;
+  min-width: 32px;
+  padding-inline: 0;
 }
 
 .analysis-side .contribution-lookback-field {
-  justify-self: start;
+  grid-area: lookback;
+  justify-self: end;
+}
+
+@container (min-width: 620px) {
+  .analysis-side .contribution-heading {
+    grid-template-columns: minmax(220px, 1fr) auto auto;
+    grid-template-areas: "title period lookback";
+    align-items: start;
+  }
+
+  .analysis-side .contribution-period-tabs,
+  .analysis-side .contribution-lookback-field {
+    justify-self: end;
+  }
 }
 
 .analysis-time-panel .snapshot-heatmap,
@@ -4815,7 +5387,22 @@ textarea:focus {
 }
 
 .analysis-side .heatmap-controls {
-  justify-content: flex-start;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.analysis-side .heatmap-controls .control-field,
+.analysis-side .heatmap-controls .toggle-field {
+  min-width: 0;
+  width: auto;
+}
+
+.analysis-side .heatmap-controls .control-select {
+  width: auto !important;
 }
 
 .analysis-side .heatmap-range-control,
@@ -5003,13 +5590,122 @@ textarea:focus {
 }
 
 @media (max-width: 560px) {
+  :root {
+    --icon-heading: 16px;
+    --icon-section: 14px;
+    --icon-card: 13px;
+    --density-compact: 28px;
+  }
+
+  main {
+    padding-top: 12px;
+  }
+
+  .dashboard-main,
+  .dashboard-side,
+  .accounts-side,
+  .analysis-main,
+  .analysis-side {
+    gap: 12px;
+  }
+
+  .dashboard-hero-grid,
+  .dashboard-kpis {
+    gap: 10px;
+  }
+
   .metric-card {
     min-height: 82px;
     padding: 13px 14px;
   }
 
+  .net-worth-hero {
+    min-height: 156px;
+    padding: 20px;
+  }
+
+  .net-worth-hero::before {
+    right: 12px;
+    top: 38px;
+    width: 44%;
+    opacity: 0.5;
+  }
+
   .metric-card strong {
     font-size: 21px;
+  }
+
+  .dashboard-trend-panel .line-chart,
+  .analysis-trend-chart {
+    height: 240px;
+  }
+
+  .trend-controls {
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+  }
+
+  .trend-line-toggles,
+  .trend-period-tabs,
+  .trend-metric-tabs,
+  .trend-mode-tabs {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .trend-line-toggles {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .trend-period-tabs {
+    flex: 0 0 auto;
+  }
+
+  .trend-toggle {
+    flex: 1 1 0;
+    justify-content: center;
+    min-width: 0;
+    min-height: 26px;
+    padding: 1px 5px;
+    gap: 3px;
+    font-size: 10px;
+    white-space: nowrap;
+  }
+
+  .trend-toggle input {
+    width: 11px;
+    height: 11px;
+    min-height: 11px;
+  }
+
+  .trend-period {
+    min-width: 28px;
+    min-height: 26px;
+    padding: 0 6px;
+    font-size: 10px;
+  }
+
+  .control-field {
+    gap: 4px;
+    font-size: 10px;
+  }
+
+  .control-select,
+  .control-select-button {
+    height: 28px;
+    min-height: 28px;
+    border-radius: 8px;
+    font-size: 10px;
+    line-height: 26px;
+  }
+
+  .control-select {
+    padding-left: 8px;
+    padding-right: 22px;
+    background-position: right 6px center;
   }
 
   .panel-heading {
@@ -5024,6 +5720,17 @@ textarea:focus {
 
   .account-list-panel > .panel-heading {
     align-items: center;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .account-list-panel > .panel-heading .panel-actions {
+    gap: 6px;
+  }
+
+  .account-list-panel > .panel-heading .secondary-button,
+  .account-list-panel > .panel-heading .primary-button {
+    min-height: 34px;
+    padding-inline: 10px;
   }
 
   .account-sheet {
@@ -5099,9 +5806,36 @@ textarea:focus {
     align-items: flex-start;
   }
 
+  .analysis-side .contribution-heading {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      "title title"
+      "period lookback";
+    align-items: center;
+    gap: 10px 8px;
+  }
+
+  .analysis-side .contribution-heading > div:first-child {
+    grid-area: title;
+  }
+
+  .analysis-side .contribution-period-tabs {
+    grid-area: period;
+    justify-self: start;
+  }
+
+  .analysis-side .contribution-lookback-field {
+    grid-area: lookback;
+    justify-self: end;
+  }
+
   .contribution-period-tabs,
   .analysis-period-tabs {
     width: 100%;
+  }
+
+  .analysis-side .contribution-period-tabs {
+    width: max-content;
   }
 
   .trend-control-stack,
@@ -5229,8 +5963,13 @@ textarea:focus {
     --text-page-title: 26px;
     --text-module-title: 16px;
     --text-section-title: 14px;
+    --text-item-title: 13px;
     --text-body: 12px;
     --text-support: 11px;
+    --icon-nav: 16px;
+    --icon-heading: 15px;
+    --icon-section: 13px;
+    --icon-card: 12px;
     --density-field: 36px;
     --density-button: 36px;
     --density-icon: 30px;
@@ -5245,13 +5984,45 @@ textarea:focus {
     padding: 14px;
   }
 
+  .dashboard-kpis {
+    gap: 8px;
+  }
+
+  .dashboard-kpis .metric-card {
+    min-height: 86px;
+    padding: 10px;
+  }
+
+  .dashboard-kpis .metric-card > span {
+    font-size: 11px;
+  }
+
+  .dashboard-kpis .metric-card strong {
+    font-size: clamp(15px, 4.5vw, 19px);
+  }
+
+  .dashboard-kpis .metric-card small {
+    font-size: 10px;
+  }
+
   .account-list-panel > .panel-heading {
     flex-wrap: wrap;
   }
 
   .panel-actions {
+    width: auto;
+    justify-content: flex-end;
+  }
+
+  .account-list-panel > .panel-heading .panel-actions,
+  .snapshot-history-actions {
     width: 100%;
     justify-content: flex-start;
+  }
+
+  .account-list-panel > .panel-heading .panel-actions {
+    width: auto;
+    justify-content: flex-end;
   }
 
   .field-row-heading .panel-actions {
@@ -5347,7 +6118,7 @@ textarea:focus {
   .tabs {
     position: fixed;
     right: max(14px, env(safe-area-inset-right));
-    bottom: max(14px, env(safe-area-inset-bottom));
+    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 18px);
     left: max(14px, env(safe-area-inset-left));
     z-index: 50;
     display: grid;
@@ -5363,9 +6134,22 @@ textarea:focus {
 
   .tab {
     justify-content: center;
+    flex-direction: column;
+    gap: 3px;
     min-height: 40px;
     padding: 0 8px;
     border-radius: 13px;
+    font-size: 11px;
+    line-height: 1.1;
+  }
+
+  .tab.active {
+    box-shadow: none;
+  }
+
+  .tab .ui-icon {
+    width: 17px;
+    height: 17px;
   }
 
   .trend-period,
@@ -5398,7 +6182,7 @@ textarea:focus {
   }
 
   main {
-    padding-bottom: 92px;
+    padding-bottom: 112px;
   }
 }
 
@@ -5409,7 +6193,7 @@ textarea:focus {
   }
 
   main {
-    padding: 14px 16px 92px;
+    padding: 14px 16px 112px;
   }
 
   .dashboard-hero-grid,
@@ -5435,18 +6219,20 @@ textarea:focus {
   }
 
   .account-management-group .account-card {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: minmax(0, 1fr) minmax(112px, max-content) auto;
+    gap: 10px;
   }
 
   .account-card-side {
-    grid-column: 1 / -1;
-    justify-items: start;
-    min-width: 0;
-    text-align: left;
+    grid-column: 2;
+    grid-row: 1;
+    justify-items: end;
+    min-width: 112px;
+    text-align: right;
   }
 
   .account-actions {
-    grid-column: 2;
+    grid-column: 3;
     grid-row: 1;
   }
 
@@ -5474,23 +6260,46 @@ textarea:focus {
   }
 
   .dashboard-kpis {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
   }
 
   .dashboard-kpis .metric-card {
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas:
-      "label value"
-      "note value";
-    min-height: 78px;
-    column-gap: 14px;
-    row-gap: 4px;
+    min-height: 92px;
+    padding: 12px;
+    gap: 5px;
+  }
+
+  .dashboard-kpis .metric-card::before {
+    top: 12px;
+    right: 12px;
+    width: 28px;
+    height: 28px;
+    border-radius: 10px;
+  }
+
+  .dashboard-kpis .metric-card > span {
+    max-width: calc(100% - 34px);
+    gap: 6px;
+    font-size: 12px;
+  }
+
+  .dashboard-kpis .metric-card > span .ui-icon {
+    width: 15px;
+    height: 15px;
   }
 
   .dashboard-kpis .metric-card strong {
-    justify-self: end;
-    font-size: clamp(22px, 7vw, 28px);
-    text-align: right;
+    justify-self: start;
+    font-size: clamp(17px, 4.9vw, 22px);
+    font-weight: 700;
+    line-height: 1.05;
+    text-align: left;
+  }
+
+  .dashboard-kpis .metric-card small {
+    font-size: 11px;
+    line-height: 1.25;
   }
 
   .net-worth-hero {
@@ -5560,7 +6369,47 @@ textarea:focus {
   }
 
   .trend-controls {
-    align-items: stretch;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+
+  .trend-line-toggles,
+  .trend-period-tabs,
+  .trend-metric-tabs,
+  .trend-mode-tabs {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+
+  .trend-toggle {
+    min-height: 26px;
+    padding-inline: 5px;
+    font-size: 10px;
+  }
+
+  .trend-period,
+  .trend-toggle,
+  .control-select,
+  .secondary-button.small,
+  .primary-button.small,
+  .control-select-button.small {
+    min-height: 28px;
+  }
+
+  .trend-period {
+    min-width: 28px;
+    padding-inline: 6px;
+    font-size: 10px;
+  }
+
+  .control-select,
+  .heatmap-controls .control-select,
+  .contribution-lookback-field .control-select {
+    height: 28px;
+    min-height: 28px;
+    line-height: 26px;
+    font-size: 10px;
   }
 
   .analysis-trend-subheading .trend-control-stack {
@@ -5591,7 +6440,7 @@ textarea:focus {
 
   .trend-period-tabs .trend-period {
     flex: 0 0 auto;
-    min-width: 44px;
+    min-width: 28px;
   }
 
   .trend-period,
@@ -5599,7 +6448,7 @@ textarea:focus {
   .secondary-button.small,
   .primary-button.small,
   .control-select-button.small {
-    min-height: 34px;
+    min-height: 28px;
   }
 
   .icon-button,
@@ -5615,11 +6464,6 @@ textarea:focus {
   }
 
   .bar-info {
-    display: grid;
-    gap: 4px;
-  }
-
-  .bar-info span:last-child {
-    justify-self: start;
+    gap: 8px;
   }
 }
