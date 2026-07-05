@@ -1,5 +1,12 @@
-const CACHE_NAME = "asset-snapshot-book-v136";
-const ASSETS = ["./", "./index.html", "./styles.css", "./app.js", "./manifest.webmanifest", "./icon.svg"];
+const CACHE_NAME = "asset-snapshot-book-v137";
+const ASSETS = [
+  "./",
+  "./index.html",
+  "./styles.css?v=137",
+  "./app.js?v=137",
+  "./manifest.webmanifest",
+  "./icon.svg",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(ASSETS)));

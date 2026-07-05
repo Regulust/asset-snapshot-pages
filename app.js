@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v0.2.0 / res v136";
+const APP_VERSION = "v0.2.0 / res v137";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -201,6 +201,42 @@ const LINE_CHART_DEFAULTS = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+
+function updateUIShellClasses() {
+  const root = document.documentElement;
+  const userAgent = navigator.userAgent || "";
+  const maxTouchPoints = navigator.maxTouchPoints || 0;
+  const coarsePointer = window.matchMedia?.("(pointer: coarse)").matches || false;
+  const hoverNone = window.matchMedia?.("(hover: none)").matches || false;
+  const compactViewport = window.matchMedia?.("(max-width: 860px)").matches || false;
+  const mobileUA = /Android|iPhone|iPod|Mobile|Windows Phone/i.test(userAgent);
+  const iPadLike = /iPad/i.test(userAgent) || (/Macintosh/i.test(userAgent) && maxTouchPoints > 1);
+  const touchShell = coarsePointer || hoverNone || maxTouchPoints > 0;
+  const mobileShell = compactViewport || ((mobileUA || iPadLike) && touchShell);
+
+  root.classList.toggle("is-touch-shell", touchShell);
+  root.classList.toggle("is-mobile-ua-shell", (mobileUA || iPadLike) && touchShell);
+  root.classList.toggle("is-mobile-shell", mobileShell);
+  root.dataset.pointer = touchShell ? "coarse" : "fine";
+}
+
+function bindUIShellDetection() {
+  updateUIShellClasses();
+  ["(max-width: 860px)", "(pointer: coarse)", "(hover: none)"].forEach((query) => {
+    const media = window.matchMedia?.(query);
+    if (!media) return;
+    if (typeof media.addEventListener === "function") media.addEventListener("change", updateUIShellClasses);
+    else if (typeof media.addListener === "function") media.addListener(updateUIShellClasses);
+  });
+  window.visualViewport?.addEventListener("resize", updateUIShellClasses);
+}
+
+function setAdaptiveMoneyClass(element) {
+  if (!element) return;
+  const textLength = (element.textContent || "").replace(/\s+/g, "").length;
+  element.classList.toggle("is-long-money", textLength >= 12);
+  element.classList.toggle("is-very-long-money", textLength >= 15);
+}
 
 function appDialog({ title = "确认操作", message = "", confirmText = "确定", cancelText = "取消", variant = "default", showCancel = true } = {}) {
   const backdrop = $("#appDialog");
@@ -1025,6 +1061,8 @@ function renderDashboard() {
   $("#netWorthValue").innerHTML = moneySpan(formatMoney(total.net));
   $("#assetValue").innerHTML = moneySpan(formatMoney(total.assets));
   $("#liabilityValue").innerHTML = moneySpan(formatMoney(total.liabilities));
+  setAdaptiveMoneyClass($("#assetValue"));
+  setAdaptiveMoneyClass($("#liabilityValue"));
   $("#latestDateText").textContent = latest ? `最新快照 ${latest.date}` : "暂无快照";
   const netWorthDeltaText = $("#netWorthDeltaText");
   netWorthDeltaText.classList.remove("is-positive", "is-negative", "is-neutral");
@@ -2344,46 +2382,6 @@ function renderTrend() {
     chartId: "trend",
     emptyText: "暂无趋势数据",
   });
-  return;
-
-  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  const yTicks = yTickValues.map((value) => {
-    const y = pad.top + ((max - value) / spread) * plotHeight;
-    return `<line class="chart-grid-line" x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" /><text x="${pad.left - 14}" y="${y + 6}" text-anchor="end" class="chart-axis-label">${state.settings.privacy ? privateMoneyPlaceholder() : escapeHtml(compactMoney(value))}</text>`;
-  }).join("");
-  svg.innerHTML = `
-    ${yTicks}
-    <line x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" stroke="#aeb7c6" />
-    <line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}" stroke="#aeb7c6" />
-    ${activeSeries.map((series) => {
-      const line = coords.map((point) => `${point.seriesCoords[series.key].x},${point.seriesCoords[series.key].y}`).join(" ");
-      return `<polyline points="${line}" fill="none" stroke="${series.color}" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />`;
-    }).join("")}
-    ${coords
-      .map(
-        (point, index) => `
-          <line x1="${point.x}" y1="${height - pad.bottom}" x2="${point.x}" y2="${height - pad.bottom + 7}" stroke="#aeb7c6" />
-          <text x="${point.x}" y="${height - 18}" text-anchor="middle" class="chart-axis-label chart-x-label">${escapeHtml(point.label)}</text>
-          ${activeSeries.map((series) => `
-            <circle class="trend-point" cx="${point.seriesCoords[series.key].x}" cy="${point.seriesCoords[series.key].y}" r="5.5" fill="#fff" stroke="${series.color}" stroke-width="3">
-              <title>${point.title} · ${series.label}: ${state.settings.privacy ? "金额已隐藏" : formatMoney(point[series.key])}</title>
-            </circle>
-          `).join("")}
-        `
-      )
-      .join("")}
-    <g id="trendGuide" class="trend-guide" visibility="hidden">
-      <line class="trend-guide-x" stroke-dasharray="6 5"></line>
-      <line class="trend-guide-y" stroke-dasharray="6 5"></line>
-    </g>
-    <g id="trendTooltip" class="trend-tooltip" visibility="hidden"><rect rx="6" width="224" height="${34 + activeSeries.length * 22}"></rect><text x="12" y="23"></text>${activeSeries.map((series, index) => `<text class="money" data-tooltip-series="${series.key}" x="12" y="${48 + index * 22}"></text>`).join("")}</g>
-    <rect id="trendHitArea" class="trend-hit-area" x="${pad.left}" y="${pad.top}" width="${width - pad.left - pad.right}" height="${height - pad.top - pad.bottom}" fill="transparent" />
-  `;
-  const hitArea = $("#trendHitArea");
-  const showNearest = (event) => showNearestTrendPoint(event, svg, coords, activeSeries, width, height, pad);
-  hitArea.addEventListener("pointermove", showNearest);
-  hitArea.addEventListener("pointerdown", showNearest);
-  svg.addEventListener("pointerleave", hideTrendTooltip);
 }
 
 function trendSeries() {
@@ -2461,17 +2459,6 @@ function snapshotPeriod(date, period) {
   return { key: yearText, label: yearText, title: yearText };
 }
 
-function showNearestTrendPoint(event, svg, coords, activeSeries, width, height, pad) {
-  const point = svg.createSVGPoint();
-  point.x = event.clientX;
-  point.y = event.clientY;
-  const svgPoint = point.matrixTransform(svg.getScreenCTM().inverse());
-  const nearest = coords.reduce((closest, current) =>
-    Math.abs(current.x - svgPoint.x) < Math.abs(closest.x - svgPoint.x) ? current : closest
-  );
-  showTrendTooltip(nearest, activeSeries, width, height, pad);
-}
-
 function chartBounds(values) {
   const dataMin = Math.min(...values);
   const dataMax = Math.max(...values);
@@ -2490,6 +2477,15 @@ function chartBounds(values) {
     ticks.push(Number(value.toFixed(8)));
   }
   return { min, max, step, ticks };
+}
+
+function shouldShowXAxisLabel(index, total, width, options = {}) {
+  if (typeof options.xLabelFilter === "function") return options.xLabelFilter(index, total, width);
+  if (width >= 520 || total <= 8) return true;
+  if (index === 0 || index === total - 1) return true;
+  const maxLabels = width < 430 ? 4 : 5;
+  const interval = Math.max(1, Math.ceil((total - 1) / Math.max(maxLabels - 1, 1)));
+  return index % interval === 0;
 }
 
 function niceChartStep(value) {
@@ -2518,42 +2514,6 @@ function compactMoney(value) {
 
 function formatCompactNumber(value) {
   return value.toFixed(1);
-}
-
-function showTrendTooltip(point, activeSeries, width, height, pad) {
-  const tooltip = $("#trendTooltip");
-  const guide = $("#trendGuide");
-  if (!tooltip || !guide || !point) return;
-  const firstSeries = activeSeries[0];
-  const anchor = firstSeries ? point.seriesCoords[firstSeries.key] : { x: point.x, y: pad.top };
-  const tooltipWidth = 224;
-  const tooltipHeight = 34 + activeSeries.length * 22;
-  const x = Math.min(Math.max(point.x - tooltipWidth / 2, pad.left + 4), width - pad.right - tooltipWidth - 4);
-  const y = Math.max(anchor.y - tooltipHeight - 12, 4);
-  tooltip.setAttribute("transform", `translate(${x} ${y})`);
-  tooltip.setAttribute("visibility", "visible");
-  guide.setAttribute("visibility", "visible");
-  const horizontal = guide.querySelector(".trend-guide-x");
-  horizontal.setAttribute("x1", pad.left);
-  horizontal.setAttribute("x2", anchor.x);
-  horizontal.setAttribute("y1", anchor.y);
-  horizontal.setAttribute("y2", anchor.y);
-  const vertical = guide.querySelector(".trend-guide-y");
-  vertical.setAttribute("x1", point.x);
-  vertical.setAttribute("x2", point.x);
-  vertical.setAttribute("y1", pad.top);
-  vertical.setAttribute("y2", height - pad.bottom);
-  const texts = tooltip.querySelectorAll("text");
-  texts[0].textContent = point.title;
-  activeSeries.forEach((series) => {
-    const text = tooltip.querySelector(`[data-tooltip-series="${series.key}"]`);
-    if (text) text.textContent = `${series.label}: ${state.settings.privacy ? privateMoneyPlaceholder() : formatMoney(point[series.key])}`;
-  });
-}
-
-function hideTrendTooltip() {
-  $("#trendTooltip")?.setAttribute("visibility", "hidden");
-  $("#trendGuide")?.setAttribute("visibility", "hidden");
 }
 
 function renderNetWorthContribution() {
@@ -3209,8 +3169,9 @@ function renderInteractiveLineChart(svg, points, series, options = {}) {
     options.minWidth || LINE_CHART_DEFAULTS.minWidth,
     Math.min(options.maxWidth || LINE_CHART_DEFAULTS.maxWidth, Math.round(svg.getBoundingClientRect().width || LINE_CHART_DEFAULTS.maxWidth))
   );
-  const height = options.height || LINE_CHART_DEFAULTS.height;
-  const pad = options.pad || LINE_CHART_DEFAULTS.pad;
+  const renderedHeight = Math.round(svg.getBoundingClientRect().height || 0);
+  const height = options.height || (renderedHeight > 0 ? renderedHeight : LINE_CHART_DEFAULTS.height);
+  const pad = width < 520 && options.compactPad ? options.compactPad : (options.pad || LINE_CHART_DEFAULTS.pad);
   const axisFontSize = width < 520 ? 11 : 12;
   const xAxisFontSize = axisFontSize;
   const tooltip = lineChartTooltipMetrics(width, activeSeries.length);
@@ -3244,9 +3205,9 @@ function renderInteractiveLineChart(svg, points, series, options = {}) {
       const line = coords.map((point) => `${point.seriesCoords[item.key].x},${point.seriesCoords[item.key].y}`).join(" ");
       return `<polyline points="${line}" fill="none" stroke="${item.color}" stroke-width="${options.strokeWidth || LINE_CHART_DEFAULTS.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" />`;
     }).join("")}
-    ${coords.map((point) => `
+    ${coords.map((point, index) => `
       <line class="chart-x-tick" x1="${point.x}" y1="${height - pad.bottom}" x2="${point.x}" y2="${height - pad.bottom + 6}" />
-      <text x="${point.x}" y="${height - 16}" text-anchor="middle" class="chart-axis-label chart-x-label" style="font-size:${xAxisFontSize}px;">${escapeHtml(point.label)}</text>
+      ${shouldShowXAxisLabel(index, coords.length, width, options) ? `<text x="${point.x}" y="${height - 16}" text-anchor="middle" class="chart-axis-label chart-x-label" style="font-size:${xAxisFontSize}px;">${escapeHtml(point.label)}</text>` : ""}
       ${activeSeries.map((item) => `<circle class="trend-point" cx="${point.seriesCoords[item.key].x}" cy="${point.seriesCoords[item.key].y}" r="${options.pointRadius || LINE_CHART_DEFAULTS.pointRadius}" fill="#fff" stroke="${item.color}" stroke-width="${options.pointStrokeWidth || LINE_CHART_DEFAULTS.pointStrokeWidth}"><title>${escapeHtml(point.title)} · ${escapeHtml(item.label)}: ${escapeHtml(formatValue(point[item.key]))}</title></circle>`).join("")}
     `).join("")}
     <g id="${chartId}Guide" class="trend-guide" visibility="hidden">
@@ -3386,8 +3347,8 @@ function analysisTrendChartModel(points, mode, metric = analysisTrendMetricConfi
 function renderAnalysisTrendChart(svg, chart, metric = analysisTrendMetricConfig()) {
   renderInteractiveLineChart(svg, chart.points, chart.series, {
     chartId: "analysisTrend",
-    height: 260,
     pad: { top: 28, right: 28, bottom: 50, left: 100 },
+    compactPad: { top: 24, right: 22, bottom: 44, left: 72 },
     emptyText: metric.empty,
     axisFormatter: (value) => metric.valueType === "percent" ? `${(Number(value || 0) * 100).toFixed(0)}%` : (state.settings.privacy ? privateMoneyPlaceholder() : compactMoney(value)),
     valueFormatter: (value) => analysisTrendPlainValue(value, analysisTrendMetric),
@@ -3444,8 +3405,8 @@ function renderAnalysisHealthTrend() {
   legend.innerHTML = series.map((item) => `<span><i style="background:${item.color};"></i>${escapeHtml(item.label)}</span>`).join("");
   renderInteractiveLineChart(svg, points, series, {
     chartId: "analysisHealthTrend",
-    height: 220,
     pad: { top: 24, right: 28, bottom: 44, left: 72 },
+    compactPad: { top: 22, right: 22, bottom: 42, left: 60 },
     emptyText: "暂无资产健康趋势数据",
     axisFormatter: (value) => `${(Number(value || 0) * 100).toFixed(0)}%`,
     valueFormatter: (value) => `${(Number(value || 0) * 100).toFixed(1)}%`,
@@ -5054,14 +5015,32 @@ function findOrCreateAccount(name, currency, group, type = "other") {
   return account;
 }
 
+let chartResizeTimer = null;
+
+function renderVisibleCharts() {
+  if ($("#dashboardView")?.classList.contains("active")) renderTrend();
+  if ($("#analysisView")?.classList.contains("active")) {
+    renderAnalysisTrend();
+    renderAnalysisHealthTrend();
+  }
+}
+
+function scheduleVisibleChartRender() {
+  window.clearTimeout(chartResizeTimer);
+  chartResizeTimer = window.setTimeout(renderVisibleCharts, 120);
+}
+
 function bindEvents() {
   $$(".tab").forEach((button) => {
     button.addEventListener("click", () => {
       $$(".tab").forEach((item) => item.classList.toggle("active", item === button));
       $$(".view").forEach((view) => view.classList.remove("active"));
       $(`#${button.dataset.tab}View`).classList.add("active");
+      scheduleVisibleChartRender();
     });
   });
+
+  window.addEventListener("resize", scheduleVisibleChartRender);
 
   $("#privacyToggle").addEventListener("click", () => {
     state.settings.privacy = !state.settings.privacy;
@@ -5081,7 +5060,7 @@ function bindEvents() {
   $$("[data-trend-period]").forEach((button) => {
     button.addEventListener("click", () => {
       trendPeriod = button.dataset.trendPeriod || "day";
-      hideTrendTooltip();
+      hideLineChartTooltip($("#trendChart"), "trend");
       renderTrend();
     });
   });
@@ -6721,6 +6700,8 @@ function registerServiceWorker() {
   }
 }
 
+bindUIShellDetection();
 bindEvents();
 renderAll();
+scheduleVisibleChartRender();
 registerServiceWorker();
