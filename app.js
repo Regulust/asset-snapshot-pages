@@ -1892,6 +1892,17 @@ function renderHealthScopeManager() {
   $("#healthScopeManager").innerHTML = accountGroupFilterHtml + typeScopeHtml;
 }
 
+function renderHealthScopeManagerKeepingScroll() {
+  const sheet = $("#healthScopeSheet .account-sheet");
+  const scrollTop = sheet?.scrollTop || 0;
+  renderHealthScopeManager();
+  if (!sheet) return;
+  sheet.scrollTop = scrollTop;
+  requestAnimationFrame(() => {
+    sheet.scrollTop = scrollTop;
+  });
+}
+
 function renderCustomHealthAccountScopeHtml(draft) {
   const accounts = [...state.accounts].sort((a, b) =>
     accountGroupName(a).localeCompare(accountGroupName(b), "zh-Hans-CN") ||
@@ -5710,7 +5721,7 @@ function bindEvents() {
       setAccountScopeChecked(draft, [accountCheckbox.dataset.healthAccountScopeAccount], accountCheckbox.checked);
       setActiveHealthScopeDraft(draft);
       healthScopeDraftDirty = true;
-      renderHealthScopeManager();
+      renderHealthScopeManagerKeepingScroll();
       return;
     }
     const accountScopeGroupCheckbox = event.target.closest("[data-health-account-scope-group]");
@@ -5729,7 +5740,7 @@ function bindEvents() {
       setAccountScopeChecked(draft, accountIds, accountScopeGroupCheckbox.checked);
       setActiveHealthScopeDraft(draft);
       healthScopeDraftDirty = true;
-      renderHealthScopeManager();
+      renderHealthScopeManagerKeepingScroll();
       return;
     }
     const accountGroupCheckbox = event.target.closest("[data-health-account-group]");
@@ -5741,7 +5752,7 @@ function bindEvents() {
         draft.excludedAccountGroupNames = [...(draft.excludedAccountGroupNames || []), groupName];
       }
       healthScopeDraftDirty = true;
-      renderHealthScopeManager();
+      renderHealthScopeManagerKeepingScroll();
       return;
     }
     const groupCheckbox = event.target.closest("[data-health-scope-group]");
@@ -5760,7 +5771,7 @@ function bindEvents() {
         ])];
       }
       healthScopeDraftDirty = true;
-      renderHealthScopeManager();
+      renderHealthScopeManagerKeepingScroll();
       return;
     }
     const typeCheckbox = event.target.closest("[data-health-scope-type]");
@@ -5772,7 +5783,7 @@ function bindEvents() {
       draft.excludedTypeIds.push(typeId);
     }
     healthScopeDraftDirty = true;
-    renderHealthScopeManager();
+    renderHealthScopeManagerKeepingScroll();
   });
   $("#customHealthName").addEventListener("input", (event) => {
     if (!customHealthDraft) return;
@@ -5944,7 +5955,7 @@ function bindEvents() {
       : { scopeVersion: 2, excludedGroupIds: [], excludedTypeIds: [], excludedAccountGroupNames: [], excludedAccountIds: [] };
     setActiveHealthScopeDraft(scope);
     healthScopeDraftDirty = true;
-    renderHealthScopeManager();
+    renderHealthScopeManagerKeepingScroll();
   });
   $("#resetHealthScope").addEventListener("click", () => {
     const isDenominator = activeCustomHealthScopePart === "denominator" && healthCardUsesDenominatorScope(activeHealthScopeKind);
@@ -5952,7 +5963,7 @@ function bindEvents() {
     const scope = defaultHealthScopeForCard(defaultKey, typeGroups());
     setActiveHealthScopeDraft(scopeWithAccountSelection(scope));
     healthScopeDraftDirty = true;
-    renderHealthScopeManager();
+    renderHealthScopeManagerKeepingScroll();
   });
   $("#saveHealthScope").addEventListener("click", saveHealthScopeDraft);
   $("#discardHealthScope").addEventListener("click", () => closeSettingsSheet($("#healthScopeSheet")));
