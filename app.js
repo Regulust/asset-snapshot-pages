@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v0.2.0 / res v137";
+const APP_VERSION = "v0.2.0 / res v138";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -1083,7 +1083,29 @@ function renderDashboard() {
   renderTrend();
   renderGroups(total);
   renderTypeBreakdown(total);
+  renderDashboardRecentSnapshots();
   renderAccountTable(total);
+}
+
+function renderDashboardRecentSnapshots() {
+  const container = $("#dashboardRecentSnapshots");
+  if (!container) return;
+  const snapshots = [...state.snapshots]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 6);
+  if (!snapshots.length) {
+    container.innerHTML = emptyHtml();
+    return;
+  }
+  container.innerHTML = snapshots.map((snapshot) => {
+    const total = snapshotTotal(snapshot);
+    return `
+      <article class="dashboard-recent-item">
+        <span>${escapeHtml(snapshot.date)}</span>
+        <b>${moneySpan(formatMoney(total.net))}</b>
+      </article>
+    `;
+  }).join("");
 }
 
 function renderAnalysis() {
@@ -5434,6 +5456,17 @@ function bindEvents() {
     renderAll();
   });
   $("#openSnapshotForm").addEventListener("click", () => openSnapshotSheet());
+  $("#dashboardOpenSnapshotForm")?.addEventListener("click", () => openSnapshotSheet());
+  $("#mobileOpenSnapshotForm")?.addEventListener("click", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    openSnapshotSheet();
+  });
+  $("#dashboardOpenAccountForm")?.addEventListener("click", () => {
+    resetAccountForm();
+    openAccountSheet();
+  });
+  $("#dashboardOpenSnapshotHistory")?.addEventListener("click", () => openSnapshotHistorySheet());
   $("#closeSnapshotForm").addEventListener("click", closeSnapshotSheet);
   $("#cancelSnapshotForm").addEventListener("click", closeSnapshotSheet);
   $("#snapshotDate").addEventListener("change", () => {
@@ -6408,7 +6441,11 @@ function resetAccountForm() {
 }
 
 function openAccountSheet() {
-  $("#accountSheet").hidden = false;
+  const accountSheet = $("#accountSheet");
+  if (accountSheet?.parentElement?.classList.contains("view")) {
+    document.querySelector("main")?.appendChild(accountSheet);
+  }
+  accountSheet.hidden = false;
   document.body.classList.add("sheet-open");
   window.setTimeout(() => $("#accountForm").elements.name.focus(), 0);
 }
@@ -6592,9 +6629,13 @@ function closeAccountSheet() {
 }
 
 function openSnapshotSheet(snapshotId = null) {
+  const snapshotSheet = $("#snapshotSheet");
+  if (snapshotSheet?.parentElement?.classList.contains("view")) {
+    document.querySelector("main")?.appendChild(snapshotSheet);
+  }
   editingSnapshotId = snapshotId;
   renderSnapshotForm();
-  $("#snapshotSheet").hidden = false;
+  snapshotSheet.hidden = false;
   document.body.classList.add("sheet-open");
   window.setTimeout(() => $("#snapshotDate").focus(), 0);
 }

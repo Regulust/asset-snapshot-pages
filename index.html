@@ -7,7 +7,7 @@
     <meta name="description" content="本地资产余额快照记账 PWA" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=137" />
+    <link rel="stylesheet" href="./styles.css?v=138" />
     <title>资产快照本</title>
   </head>
   <body>
@@ -22,6 +22,8 @@
       <symbol id="icon-trend" viewBox="0 0 24 24"><path d="M4 16.5 9 12l4 3 7-8"/><path d="M4 20h16"/></symbol>
       <symbol id="icon-distribution" viewBox="0 0 24 24"><path d="M5 19V9M12 19V5M19 19v-7"/><path d="M3 19h18"/></symbol>
       <symbol id="icon-snapshot" viewBox="0 0 24 24"><path d="M7 4h10l3 3v13H4V4z"/><path d="M8 12h8M8 16h5"/></symbol>
+      <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+      <symbol id="icon-user-plus" viewBox="0 0 24 24"><path d="M15 19a5 5 0 0 0-10 0"/><path d="M10 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/><path d="M18 8v6M15 11h6"/></symbol>
       <symbol id="icon-calendar" viewBox="0 0 24 24"><path d="M5 6h14v14H5z"/><path d="M8 4v4M16 4v4M5 10h14"/></symbol>
       <symbol id="icon-currency" viewBox="0 0 24 24"><path d="M12 4v16M8 8.5a4 4 0 0 1 4-2.5c2.2 0 4 1.1 4 2.7 0 4.2-8 1.7-8 5.8 0 1.6 1.8 2.7 4 2.7a4.4 4.4 0 0 0 4.2-2.6"/></symbol>
       <symbol id="icon-filter" viewBox="0 0 24 24"><path d="M4 6h16l-6 7v5l-4 2v-7z"/></symbol>
@@ -34,13 +36,15 @@
           <span class="brand-mark" aria-hidden="true">资</span>
           <div>
             <strong>资产快照本</strong>
-            <span>v0.2.0 / res v137</span>
+            <span>v0.2.0 / res v138</span>
           </div>
         </div>
 
         <nav class="tabs" aria-label="主导航">
           <button class="tab active" data-tab="dashboard" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-dashboard"></use></svg><span>总览</span></button>
           <button class="tab" data-tab="accounts" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-accounts"></use></svg><span>账户</span></button>
+          <button class="mobile-snapshot-tab" id="mobileOpenSnapshotForm" type="button" aria-label="录入快照"><i aria-hidden="true"><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg></i><span>录入快照</span></button>
+          
           <button class="tab" data-tab="analysis" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-analysis"></use></svg><span>分析</span></button>
           <button class="tab" data-tab="settings" type="button"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg><span>设置</span></button>
         </nav>
@@ -57,7 +61,7 @@
             <span class="brand-mark" aria-hidden="true">资</span>
             <div>
               <strong>资产快照本</strong>
-              <span>v0.2.0 / res v137</span>
+              <span>v0.2.0 / res v138</span>
             </div>
           </div>
           <div class="page-title">
@@ -143,6 +147,31 @@
               <span>按类型大类</span>
             </div>
             <div id="typeBreakdown" class="bars"></div>
+          </section>
+
+          <section class="panel dashboard-quick-panel">
+            <div class="panel-heading">
+              <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-snapshot"></use></svg>快捷操作</h2>
+              <span>常用录入入口</span>
+            </div>
+            <div class="dashboard-quick-actions">
+              <button class="dashboard-action-card dashboard-action-card--primary" id="dashboardOpenSnapshotForm" type="button">
+                <i><svg class="ui-icon" aria-hidden="true"><use href="#icon-plus"></use></svg></i>
+                <span><b>录入快照</b><small>记录当前账户余额</small></span>
+              </button>
+              <button class="dashboard-action-card" id="dashboardOpenAccountForm" type="button">
+                <i><svg class="ui-icon" aria-hidden="true"><use href="#icon-user-plus"></use></svg></i>
+                <span><b>添加账户</b><small>新增资产或负债账户</small></span>
+              </button>
+            </div>
+          </section>
+
+          <section class="panel dashboard-recent-panel">
+            <div class="panel-heading">
+              <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-calendar"></use></svg>最近快照</h2>
+              <button class="secondary-button small" id="dashboardOpenSnapshotHistory" type="button">查看全部</button>
+            </div>
+            <div id="dashboardRecentSnapshots" class="dashboard-recent-list"></div>
           </section>
               </aside>
             </div>
@@ -818,6 +847,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=137" defer></script>
+    <script src="./app.js?v=138" defer></script>
   </body>
 </html>
