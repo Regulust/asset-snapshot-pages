@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v0.2.0 / res v138";
+const APP_VERSION = "v0.2.1 / res v139";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -102,6 +102,7 @@ const defaultState = {
     customCurrencies: [],
     rates: Object.fromEntries(currencies.map((item) => [item.code, item.rate])),
     privacy: false,
+    theme: "system",
     accountTypeGroups: structuredClone(DEFAULT_ACCOUNT_TYPE_GROUPS),
     healthConfig: structuredClone(DEFAULT_HEALTH_CONFIG),
     healthDenominatorConfig: {},
@@ -159,6 +160,9 @@ const selectedAnalysisTrendTypeNames = new Set();
 let gainAnalysisFilterMode = "all";
 let gainAnalysisFilterValue = "";
 let pendingImportPreview = null;
+let csvExportRange = "all";
+let csvExportFrom = "";
+let csvExportTo = "";
 let snapshotRateDraft = null;
 let currencyManageMode = false;
 const selectedCurrencyCodes = new Set();
@@ -201,6 +205,45 @@ const LINE_CHART_DEFAULTS = {
 
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
+
+function normalizedTheme(value) {
+  return ["system", "light", "dark"].includes(value) ? value : "system";
+}
+
+function resolvedTheme(preference = state?.settings?.theme || "system") {
+  const normalized = normalizedTheme(preference);
+  if (normalized !== "system") return normalized;
+  return window.matchMedia?.("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme() {
+  const theme = resolvedTheme();
+  document.documentElement.dataset.theme = theme;
+  document.documentElement.style.colorScheme = theme;
+  $$('input[name="themeMode"]').forEach((input) => {
+    input.checked = input.value === normalizedTheme(state.settings.theme);
+  });
+  scheduleVisibleChartRender();
+}
+
+function bindThemePreference() {
+  const media = window.matchMedia?.("(prefers-color-scheme: dark)");
+  if (!media) return;
+  const onChange = () => {
+    if (normalizedTheme(state.settings.theme) === "system") applyTheme();
+  };
+  if (typeof media.addEventListener === "function") media.addEventListener("change", onChange);
+  else if (typeof media.addListener === "function") media.addListener(onChange);
+}
+
+function themeColor(name, fallback) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+}
+
+function chartPalette() {
+  const fallbacks = ["#2563eb", "#059669", "#b45309", "#7c3aed", "#dc2626", "#0891b2"];
+  return fallbacks.map((fallback, index) => themeColor(`--chart-${index + 1}`, fallback));
+}
 
 function updateUIShellClasses() {
   const root = document.documentElement;
@@ -357,6 +400,7 @@ function loadState() {
     if (!raw) return structuredClone(defaultState);
     const parsed = JSON.parse(raw);
     const settings = { ...defaultState.settings, ...(parsed.settings || {}) };
+    settings.theme = normalizedTheme(settings.theme);
     settings.customCurrencies = Array.isArray(settings.customCurrencies) ? settings.customCurrencies : [];
     settings.deletedCurrencyCodes = Array.isArray(settings.deletedCurrencyCodes) ? settings.deletedCurrencyCodes : [];
     const usedCurrencyCodes = (parsed.accounts || []).map((account) => account.currency);
@@ -809,6 +853,7 @@ async function deleteAllData() {
   }
   localStorage.removeItem(STORAGE_KEY);
   state = structuredClone(defaultState);
+  applyTheme();
   resetInteractionState();
   $("#backupText").value = "";
   $("#backupFallback").open = false;
@@ -2265,7 +2310,7 @@ function assetTreemapHtml(total, {
     (result[row.group] ||= []).push(row);
     return result;
   }, {});
-  const colors = ["#2563eb", "#059669", "#7c3aed", "#0891b2", "#b45309", "#dc2626"];
+  const colors = chartPalette();
   const rawGroupItems = Object.entries(grouped)
     .map(([group, rows], groupIndex) => ({
       id: group,
@@ -2396,7 +2441,7 @@ function renderTrend() {
   const activeSeries = trendSeries().filter((series) => visibleTrendLines.has(series.key));
 
   if (points.length === 0) {
-    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#667085">暂无趋势数据</text>`;
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="var(--chart-label)">暂无趋势数据</text>`;
     $("#trendSummary").textContent = "";
     return;
   }
@@ -2419,9 +2464,9 @@ function renderTrend() {
 
 function trendSeries() {
   return [
-    { key: "assets", label: "资产", color: "#2a9d76" },
-    { key: "liabilities", label: "负债", color: "#d95454" },
-    { key: "net", label: "净值", color: "#2f63df" },
+    { key: "assets", label: "资产", color: themeColor("--chart-asset", "#2a9d76") },
+    { key: "liabilities", label: "负债", color: themeColor("--chart-liability", "#d95454") },
+    { key: "net", label: "净值", color: themeColor("--chart-net", "#2f63df") },
   ];
 }
 
@@ -3241,7 +3286,7 @@ function renderInteractiveLineChart(svg, points, series, options = {}) {
     ${coords.map((point, index) => `
       <line class="chart-x-tick" x1="${point.x}" y1="${height - pad.bottom}" x2="${point.x}" y2="${height - pad.bottom + 6}" />
       ${shouldShowXAxisLabel(index, coords.length, width, options) ? `<text x="${point.x}" y="${height - 16}" text-anchor="middle" class="chart-axis-label chart-x-label" style="font-size:${xAxisFontSize}px;">${escapeHtml(point.label)}</text>` : ""}
-      ${activeSeries.map((item) => `<circle class="trend-point" cx="${point.seriesCoords[item.key].x}" cy="${point.seriesCoords[item.key].y}" r="${options.pointRadius || LINE_CHART_DEFAULTS.pointRadius}" fill="#fff" stroke="${item.color}" stroke-width="${options.pointStrokeWidth || LINE_CHART_DEFAULTS.pointStrokeWidth}"><title>${escapeHtml(point.title)} · ${escapeHtml(item.label)}: ${escapeHtml(formatValue(point[item.key]))}</title></circle>`).join("")}
+      ${activeSeries.map((item) => `<circle class="trend-point" cx="${point.seriesCoords[item.key].x}" cy="${point.seriesCoords[item.key].y}" r="${options.pointRadius || LINE_CHART_DEFAULTS.pointRadius}" fill="var(--chart-point-bg)" stroke="${item.color}" stroke-width="${options.pointStrokeWidth || LINE_CHART_DEFAULTS.pointStrokeWidth}"><title>${escapeHtml(point.title)} · ${escapeHtml(item.label)}: ${escapeHtml(formatValue(point[item.key]))}</title></circle>`).join("")}
     `).join("")}
     <g id="${chartId}Guide" class="trend-guide" visibility="hidden">
       <line class="trend-guide-x" stroke-dasharray="6 5"></line>
@@ -3331,7 +3376,7 @@ function hideLineChartTooltip(svg, chartId) {
 }
 
 function analysisTrendChartModel(points, mode, metric = analysisTrendMetricConfig()) {
-  const palette = ["#059669", "#2563eb", "#b45309", "#7c3aed", "#dc2626", "#0891b2", "#c026d3", "#0f766e", "#ea580c", "#4f46e5", "#16a34a", "#be123c"];
+  const palette = [...chartPalette(), "#c026d3", "#0f766e", "#ea580c", "#4f46e5", "#16a34a", "#be123c"];
   let chartPoints = points.map((point) => ({ ...point }));
   let series = [{ key: metric.totalKey, label: `总${metric.label}`, color: metric.color }];
   if (mode === "group") {
@@ -3390,9 +3435,9 @@ function renderAnalysisTrendChart(svg, chart, metric = analysisTrendMetricConfig
 
 function analysisHealthTrendSeries() {
   return [
-    { key: "liabilityRatio", label: "负债率", color: "#dc2626" },
-    { key: "cashRatio", label: "流动占比", color: "#2563eb" },
-    { key: "investmentRatio", label: "投资占比", color: "#059669" },
+    { key: "liabilityRatio", label: "负债率", color: themeColor("--chart-liability", "#dc2626") },
+    { key: "cashRatio", label: "流动占比", color: themeColor("--chart-net", "#2563eb") },
+    { key: "investmentRatio", label: "投资占比", color: themeColor("--chart-asset", "#059669") },
   ];
 }
 
@@ -3422,7 +3467,7 @@ function renderAnalysisHealthTrend() {
   if (!points.length) {
     summary.textContent = "暂无可计算资产健康趋势的历史快照";
     legend.innerHTML = "";
-    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#667085">暂无资产健康趋势数据</text>`;
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="var(--chart-label)">暂无资产健康趋势数据</text>`;
     return;
   }
   const last = points[points.length - 1];
@@ -3470,7 +3515,7 @@ function renderGroups(total) {
   $("#groupBreakdown").innerHTML = entries
     .map(([group, value], index) => {
       const percent = Math.abs(value) / denominator;
-      const colors = ["#2563eb", "#059669", "#b45309", "#7c3aed", "#dc2626", "#0891b2"];
+      const colors = chartPalette();
       return `
         <div class="bar-line">
           <div class="bar-info">
@@ -3498,7 +3543,7 @@ function renderTypeBreakdown(total) {
     return;
   }
   const denominator = Math.max(entries.reduce((sum, [, value]) => sum + Math.abs(value), 0), 1);
-  const colors = ["#7c3aed", "#0891b2", "#059669", "#b45309", "#dc2626", "#2563eb"];
+  const colors = chartPalette().slice().reverse();
   $("#typeBreakdown").innerHTML = entries
     .map(([name, value], index) => {
       const percent = Math.abs(value) / denominator;
@@ -3537,7 +3582,7 @@ function renderCurrencyExposure(total = snapshotTotal(latestSnapshot())) {
   }
   const denominator = Math.max(entries.reduce((sum, item) => sum + Math.abs(item.converted), 0), 1);
   summary.textContent = `${entries.length} 个币种 · 按${state.settings.baseCurrency}折算`;
-  const colors = ["#2563eb", "#059669", "#b45309", "#7c3aed", "#dc2626", "#0891b2"];
+  const colors = chartPalette();
   container.innerHTML = entries.map((item, index) => {
     const percent = Math.abs(item.converted) / denominator;
     const config = currencyConfig(item.code);
@@ -4128,6 +4173,8 @@ function renderAll() {
   renderAnalysis();
   renderSnapshotForm();
   renderSnapshots();
+  renderBackupOverview();
+  renderCsvExportControls();
 }
 
 function typeLabel(type) {
@@ -4278,8 +4325,11 @@ async function saveTextFile({ filename, content, type, description, accept }) {
 }
 
 function backupPayload() {
+  const portableSettings = { ...state.settings };
+  delete portableSettings.theme;
   return JSON.stringify({
     ...state,
+    settings: portableSettings,
     exportedAt: new Date().toISOString(),
     appVersion: APP_VERSION,
     dataSchemaVersion: DATA_SCHEMA_VERSION,
@@ -4634,7 +4684,9 @@ function logImportFailure(context, error) {
 function importJsonContent(content, normalizedData = null) {
   const imported = normalizedData || normalizeJsonImportData(JSON.parse(content)).data;
   validateJsonImportData(imported);
+  const localTheme = normalizedTheme(state.settings.theme);
   const importedSettings = { ...defaultState.settings, ...(imported.settings || {}) };
+  importedSettings.theme = localTheme;
   importedSettings.accountTypeGroups = normalizeTypeGroups(importedSettings.accountTypeGroups);
   importedSettings.healthConfig = normalizeHealthConfig(importedSettings.healthConfig, importedSettings.accountTypeGroups);
   importedSettings.healthDenominatorConfig = normalizeHealthDenominatorConfig(importedSettings.healthDenominatorConfig, importedSettings.accountTypeGroups);
@@ -4650,6 +4702,7 @@ function importJsonContent(content, normalizedData = null) {
     snapshots: importedSnapshots,
   };
   saveState();
+  applyTheme();
   renderAll();
 }
 
@@ -4687,6 +4740,73 @@ function dateRangeText(dates) {
   const sorted = [...new Set(dates.filter(Boolean))].sort((a, b) => a.localeCompare(b));
   if (!sorted.length) return "无日期";
   return sorted.length === 1 ? sorted[0] : `${sorted[0]} → ${sorted[sorted.length - 1]}`;
+}
+
+function formatStorageSize(bytes) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(bytes < 10240 ? 1 : 0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+}
+
+function renderBackupOverview() {
+  const target = $("#backupOverviewGrid");
+  if (!target) return;
+  const latest = latestSnapshot();
+  const total = snapshotTotal(latest);
+  const groups = new Set(state.accounts.map(accountGroupName));
+  const storageBytes = new Blob([backupPayload()]).size;
+  const money = state.settings.privacy ? privateMoneyPlaceholder() : formatMoney(total.net);
+  const items = [
+    ["账户分组", `${groups.size} 个`],
+    ["账户", `${state.accounts.length} 个`],
+    ["历史快照", `${state.snapshots.length} 条`],
+    ["最新快照", latest?.date || "暂无"],
+    ["当前净值", money],
+    ["本地数据大小", formatStorageSize(storageBytes)],
+  ];
+  target.innerHTML = items.map(([label, value, hint]) => `
+    <article><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b>${hint ? `<small>${escapeHtml(hint)}</small>` : ""}</article>
+  `).join("");
+}
+
+function dateDaysAgo(days) {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() - days);
+  return localDateString(date);
+}
+
+function resolvedCsvExportRange() {
+  const today = localDateString();
+  if (csvExportRange === "30d") return { from: dateDaysAgo(29), to: today };
+  if (csvExportRange === "90d") return { from: dateDaysAgo(89), to: today };
+  if (csvExportRange === "year") return { from: `${today.slice(0, 4)}-01-01`, to: today };
+  if (csvExportRange === "custom") return { from: csvExportFrom, to: csvExportTo };
+  return { from: "", to: "" };
+}
+
+function snapshotsInRange(snapshots, from = "", to = "") {
+  return snapshots.filter((snapshot) => (!from || snapshot.date >= from) && (!to || snapshot.date <= to));
+}
+
+function renderCsvExportControls() {
+  const rangeSelect = $("#csvExportRange");
+  if (!rangeSelect) return;
+  rangeSelect.value = csvExportRange;
+  const custom = csvExportRange === "custom";
+  $$(".csv-custom-date").forEach((label) => { label.hidden = !custom; });
+  $("#csvExportFrom").value = csvExportFrom;
+  $("#csvExportTo").value = csvExportTo;
+  const { from, to } = resolvedCsvExportRange();
+  const invalid = Boolean(from && to && from > to);
+  const snapshots = invalid ? [] : snapshotsInRange(state.snapshots, from, to);
+  const rows = snapshots.length * state.accounts.length;
+  const summary = invalid
+    ? "开始日期不能晚于结束日期。"
+    : `${dateRangeText(snapshots.map((item) => item.date))} · ${snapshots.length} 个快照日期 · 预计 ${rows} 行`;
+  $("#csvExportSummary").textContent = summary;
+  $("#csvExportSummary").classList.toggle("error", invalid || snapshots.length === 0);
+  $("#exportCsv").disabled = invalid || snapshots.length === 0;
 }
 
 function backupPreviewStats(stats) {
@@ -4746,8 +4866,11 @@ function previewJsonImport(content, sourceName = "JSON 备份") {
   };
 }
 
-function previewCsvImport(content, sourceName = "CSV 快照") {
-  const { rows, header, get } = parseCsvImportContent(content);
+function csvRowsToContent(header, rows) {
+  return [header, ...rows].map((row) => row.map(toCsvCell).join(",")).join("\n");
+}
+
+function csvPreviewDetails(rows, header, get) {
   const accountNames = [...new Set(rows.map((row) => get(row, "account").trim()).filter(Boolean))];
   const dates = [...new Set(rows.map((row) => get(row, "date").trim()).filter(Boolean))];
   const currentAccountNames = new Set(state.accounts.map((account) => account.name));
@@ -4762,28 +4885,65 @@ function previewCsvImport(content, sourceName = "CSV 快照") {
     if (seenKeys.has(key)) duplicateKeys.add(key);
     seenKeys.add(key);
   });
+  return { accountNames, dates, matchedAccounts, importedCurrencies, unknownCurrencies, duplicateKeys };
+}
+
+function refreshCsvImportPreview(preview) {
+  const { rows, header } = preview.csv;
+  const get = (row, name) => row[header.indexOf(name)] || "";
+  const from = preview.csv.from || "";
+  const to = preview.csv.to || "";
+  const invalid = Boolean(from && to && from > to);
+  const filteredRows = invalid ? [] : rows.filter((row) => {
+    const date = get(row, "date").trim();
+    return (!from || date >= from) && (!to || date <= to);
+  });
+  const details = csvPreviewDetails(filteredRows, header, get);
+  const warnings = [...preview.csv.baseWarnings];
+  if (invalid) warnings.unshift("开始日期不能晚于结束日期。");
+  if (!filteredRows.length && !invalid) warnings.unshift("当前日期范围内没有可导入的数据行。");
+  if (details.duplicateKeys.size) warnings.push(`${details.duplicateKeys.size} 个日期/账户组合重复，后出现的行会覆盖前面的余额。`);
+  if (details.unknownCurrencies.length) warnings.push(`发现未知货币：${details.unknownCurrencies.join("、")}；导入后建议检查货币设置。`);
+  preview.content = filteredRows.length ? csvRowsToContent(header, filteredRows) : "";
+  preview.csv.filteredRows = filteredRows;
+  preview.stats = [
+    { label: "有效行", value: filteredRows.length },
+    { label: "排除行", value: rows.length - filteredRows.length },
+    { label: "账户", value: `${details.accountNames.length} 个（匹配 ${details.matchedAccounts}，新增 ${details.accountNames.length - details.matchedAccounts}）` },
+    { label: "快照日期", value: details.dates.length },
+    { label: "日期范围", value: dateRangeText(details.dates) },
+    { label: "货币", value: details.importedCurrencies.length },
+    { label: "成本字段", value: header.includes("costbasis") ? "包含" : "未包含" },
+  ];
+  preview.warnings = warnings;
+  preview.blocked = invalid || filteredRows.length === 0;
+}
+
+function previewCsvImport(content, sourceName = "CSV 快照") {
+  const { rows, header, get } = parseCsvImportContent(content);
+  const allDetails = csvPreviewDetails(rows, header, get);
   const warnings = [];
-  if (duplicateKeys.size) warnings.push(`${duplicateKeys.size} 个日期/账户组合重复，后出现的行会覆盖前面的余额。`);
-  if (unknownCurrencies.length) warnings.push(`发现未知货币：${unknownCurrencies.join("、")}；导入后建议检查货币设置。`);
   if (!header.includes("costbasis")) warnings.push("CSV 未包含 costBasis 成本列，将按旧格式兼容导入；历史收益/成本分析可能缺少成本口径。");
-  return {
+  const preview = {
     kind: "csv",
     content,
     sourceName,
     title: "CSV 快照预检",
     subtitle: `${sourceName} · 确认后合并到账户和历史快照`,
     badge: "CSV",
-    stats: [
-      { label: "有效行", value: rows.length },
-      { label: "账户", value: `${accountNames.length} 个（匹配 ${matchedAccounts}，新增 ${accountNames.length - matchedAccounts}）` },
-      { label: "快照日期", value: dates.length },
-      { label: "日期范围", value: dateRangeText(dates) },
-      { label: "货币", value: importedCurrencies.length },
-      { label: "成本字段", value: header.includes("costbasis") ? "包含" : "未包含" },
-    ],
     warnings,
     repairs: [],
+    csv: {
+      rows,
+      header,
+      from: "",
+      to: "",
+      fullRange: dateRangeText(allDetails.dates),
+      baseWarnings: warnings,
+    },
   };
+  refreshCsvImportPreview(preview);
+  return preview;
 }
 
 function renderImportPreview(preview) {
@@ -4796,6 +4956,16 @@ function renderImportPreview(preview) {
   const warningItems = preview.warnings || [];
   const repairItems = preview.repairs || [];
   $("#importPreviewContent").innerHTML = `
+    ${preview.kind === "csv" ? `
+      <section class="import-range-panel">
+        <div><b>选择导入时间范围</b><span>文件完整范围：${escapeHtml(preview.csv.fullRange)}</span></div>
+        <div class="import-range-fields">
+          <label>开始日期<input id="csvImportFrom" type="date" value="${escapeHtml(preview.csv.from)}" /></label>
+          <label>结束日期<input id="csvImportTo" type="date" value="${escapeHtml(preview.csv.to)}" /></label>
+          <button class="ghost-button" id="clearCsvImportRange" type="button">全部范围</button>
+        </div>
+      </section>
+    ` : ""}
     ${backupPreviewStats(preview.stats)}
     ${repairItems.length ? `
       <div class="import-preview-repairs">
@@ -4810,6 +4980,7 @@ function renderImportPreview(preview) {
       </div>
     ` : repairItems.length ? "" : `<p class="hint">未发现明显格式风险。</p>`}
   `;
+  $("#confirmImportPreview").disabled = Boolean(preview.blocked);
   window.setTimeout(() => $("#confirmImportPreview").focus(), 0);
 }
 
@@ -4817,11 +4988,12 @@ function clearImportPreview() {
   pendingImportPreview = null;
   $("#importPreview").hidden = true;
   $("#importPreviewContent").innerHTML = "";
+  $("#confirmImportPreview").disabled = false;
   if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
 }
 
 async function confirmPendingImport() {
-  if (!pendingImportPreview) return;
+  if (!pendingImportPreview || pendingImportPreview.blocked) return;
   const preview = pendingImportPreview;
   const message = preview.kind === "json"
     ? "确认导入该 JSON 备份并覆盖当前浏览器中的全部数据吗？"
@@ -4854,9 +5026,9 @@ function toCsvCell(value) {
   return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
 }
 
-function exportSnapshotsCsv() {
+function exportSnapshotsCsv(snapshots = state.snapshots) {
   const rows = [["date", "account", "balance", "costBasis", "currency", "group", "type", "includeInNetWorth", "archived", "tags", "note"]];
-  [...state.snapshots]
+  [...snapshots]
     .sort((a, b) => a.date.localeCompare(b.date))
     .forEach((snapshot) => {
       state.accounts.forEach((account) => {
@@ -6346,9 +6518,43 @@ function bindEvents() {
     }
   });
 
+  $("#generateJsonText").addEventListener("click", () => {
+    prepareBackupText(true);
+    setBackupStatus("已生成当前完整 JSON 备份文本。", "success");
+  });
+
+  $("#clearJsonText").addEventListener("click", () => {
+    $("#backupText").value = "";
+    setBackupStatus("已清空文本输入区；当前应用数据未受影响。");
+  });
+
   $("#exportCsv").addEventListener("click", () => {
-    const ok = download(`asset-snapshots-${new Date().toISOString().slice(0, 10)}.csv`, `\uFEFF${exportSnapshotsCsv()}`, "text/csv;charset=utf-8");
+    const { from, to } = resolvedCsvExportRange();
+    if (from && to && from > to) {
+      setBackupStatus("CSV 导出失败：开始日期不能晚于结束日期。", "error");
+      return;
+    }
+    const snapshots = snapshotsInRange(state.snapshots, from, to);
+    if (!snapshots.length) {
+      setBackupStatus("当前时间范围内没有可导出的快照。", "error");
+      return;
+    }
+    const suffix = from || to ? `-${from || "start"}-${to || "end"}` : "";
+    const ok = download(`asset-snapshots${suffix}-${new Date().toISOString().slice(0, 10)}.csv`, `\uFEFF${exportSnapshotsCsv(snapshots)}`, "text/csv;charset=utf-8");
     setBackupStatus(ok ? "已请求下载 CSV，请查看浏览器下载列表。" : "CSV 导出失败。", ok ? "success" : "error");
+  });
+
+  $("#csvExportRange").addEventListener("change", (event) => {
+    csvExportRange = event.currentTarget.value || "all";
+    renderCsvExportControls();
+  });
+  $("#csvExportFrom").addEventListener("change", (event) => {
+    csvExportFrom = event.currentTarget.value;
+    renderCsvExportControls();
+  });
+  $("#csvExportTo").addEventListener("change", (event) => {
+    csvExportTo = event.currentTarget.value;
+    renderCsvExportControls();
   });
 
   $("#chooseJson").addEventListener("click", () => {
@@ -6376,8 +6582,32 @@ function bindEvents() {
     clearImportPreview();
     setBackupStatus("已取消导入。");
   });
+  $("#importPreviewContent").addEventListener("change", (event) => {
+    if (!pendingImportPreview?.csv) return;
+    if (event.target.id === "csvImportFrom") pendingImportPreview.csv.from = event.target.value;
+    else if (event.target.id === "csvImportTo") pendingImportPreview.csv.to = event.target.value;
+    else return;
+    refreshCsvImportPreview(pendingImportPreview);
+    renderImportPreview(pendingImportPreview);
+  });
+  $("#importPreviewContent").addEventListener("click", (event) => {
+    if (event.target.id !== "clearCsvImportRange" || !pendingImportPreview?.csv) return;
+    pendingImportPreview.csv.from = "";
+    pendingImportPreview.csv.to = "";
+    refreshCsvImportPreview(pendingImportPreview);
+    renderImportPreview(pendingImportPreview);
+  });
 
   $("#deleteAllData").addEventListener("click", deleteAllData);
+
+  $$('input[name="themeMode"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      if (!input.checked) return;
+      state.settings.theme = normalizedTheme(input.value);
+      saveState();
+      applyTheme();
+    });
+  });
 
   $("#importJsonText").addEventListener("click", async () => {
     const content = $("#backupText").value.trim();
@@ -6458,6 +6688,11 @@ function openSettingsSheet(sheetId) {
     selectedCurrencyCodes.clear();
     renderCurrencyOptions();
   }
+  if (sheetId === "backupSettingsSheet") {
+    renderBackupOverview();
+    renderCsvExportControls();
+  }
+  if (sheetId === "appearanceSettingsSheet") applyTheme();
   if (sheetId === "typeSettingsSheet") {
     typeDraft = structuredClone(state.settings.accountTypeGroups);
     typeDraftDirty = false;
@@ -6753,7 +6988,9 @@ function registerServiceWorker() {
 }
 
 bindUIShellDetection();
+bindThemePreference();
 bindEvents();
+applyTheme();
 renderAll();
 scheduleVisibleChartRender();
 registerServiceWorker();

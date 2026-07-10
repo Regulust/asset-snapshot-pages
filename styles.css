@@ -17,6 +17,38 @@
   --amber: #eda72e;
   --shadow: 0 18px 42px rgba(34, 58, 114, 0.1);
   --shadow-soft: 0 10px 30px rgba(34, 58, 114, 0.07);
+  --surface-page: var(--bg);
+  --surface-panel: var(--panel);
+  --surface-raised: var(--panel-tint);
+  --surface-muted: var(--blue-soft);
+  --text-primary: var(--ink);
+  --text-secondary: var(--muted);
+  --border-default: var(--line);
+  --border-soft: var(--line-soft);
+  --control-bg: var(--panel-tint);
+  --control-hover: #f4f7ff;
+  --surface-selected: #eef4ff;
+  --border-selected: #c7d7ff;
+  --text-selected: #2357c6;
+  --track-bg: #e9eef7;
+  --heatmap-empty: #edf1f7;
+  --focus-ring: rgba(47, 99, 223, 0.14);
+  --overlay: rgba(17, 27, 52, 0.36);
+  --chart-grid: #dce5f2;
+  --chart-axis: #d6dfec;
+  --chart-label: #7d8aa2;
+  --chart-tooltip-bg: rgba(17, 24, 39, 0.92);
+  --chart-tooltip-text: #ffffff;
+  --chart-point-bg: #ffffff;
+  --chart-asset: #2a9d76;
+  --chart-net: #2f63df;
+  --chart-liability: #d95454;
+  --chart-1: #2563eb;
+  --chart-2: #059669;
+  --chart-3: #b45309;
+  --chart-4: #7c3aed;
+  --chart-5: #dc2626;
+  --chart-6: #0891b2;
   --radius: 12px;
   --radius-sm: 8px;
   --sheet-width: 640px;
@@ -41,6 +73,369 @@
   --density-compact: 30px;
   --density-icon: 32px;
   --icon-size: var(--icon-heading);
+}
+
+/* v0.2.1 data management */
+.backup-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--panel-tint);
+}
+
+.backup-overview {
+  margin-top: 0;
+}
+
+.backup-section-heading h3 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.backup-section-heading p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.backup-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.backup-overview-grid article {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  min-height: 70px;
+  padding: 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--panel);
+}
+
+.backup-overview-grid span,
+.backup-overview-grid small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.backup-overview-grid b {
+  overflow-wrap: anywhere;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.backup-button-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.backup-button-grid button {
+  width: 100%;
+}
+
+.backup-text-toolbar,
+.csv-range-controls,
+.import-range-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 12px 10px;
+}
+
+.backup-text-toolbar .ghost-button {
+  margin-left: auto;
+}
+
+.csv-range-controls {
+  padding: 0;
+}
+
+.csv-range-controls label,
+.import-range-fields label {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.csv-range-controls select,
+.csv-range-controls input,
+.import-range-fields input {
+  min-height: 38px;
+}
+
+.backup-inline-summary {
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.backup-inline-summary.error {
+  color: var(--red);
+}
+
+.csv-format-help {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.csv-format-help summary {
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.csv-format-help p {
+  margin: 6px 0 0;
+  line-height: 1.55;
+}
+
+.import-range-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--panel-tint);
+}
+
+.import-range-panel > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 12px;
+}
+
+.import-range-panel > div:first-child span {
+  color: var(--muted);
+}
+
+.import-range-fields {
+  align-items: end;
+  padding: 0;
+}
+
+.theme-options {
+  display: grid;
+  gap: 10px;
+}
+
+.theme-options label {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-tint);
+  cursor: pointer;
+}
+
+.theme-options label:has(input:checked) {
+  border-color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.theme-options span {
+  display: grid;
+  gap: 3px;
+}
+
+.theme-options b {
+  color: var(--ink);
+}
+
+.theme-options small {
+  color: var(--muted);
+}
+
+/* v0.2.1 semantic dark theme */
+html[data-theme="dark"] {
+  --bg: #07111f;
+  --bg-soft: #0b1a2d;
+  --panel: #101c2d;
+  --panel-tint: #132238;
+  --ink: #edf4ff;
+  --muted: #a9b7cc;
+  --faint: #7f91aa;
+  --line: #2b3b52;
+  --line-soft: rgba(148, 163, 184, 0.2);
+  --blue: #3b82f6;
+  --blue-dark: #2563eb;
+  --blue-soft: rgba(59, 130, 246, 0.16);
+  --green: #4ade80;
+  --red: #fb7185;
+  --amber: #fbbf24;
+  --shadow: 0 20px 46px rgba(0, 0, 0, 0.3);
+  --shadow-soft: 0 12px 30px rgba(0, 0, 0, 0.22);
+  --control-hover: #192b45;
+  --surface-selected: rgba(59, 130, 246, 0.18);
+  --border-selected: rgba(96, 165, 250, 0.46);
+  --text-selected: #93c5fd;
+  --track-bg: #25364d;
+  --heatmap-empty: #17263a;
+  --focus-ring: rgba(96, 165, 250, 0.24);
+  --overlay: rgba(0, 6, 16, 0.68);
+  --chart-grid: #263850;
+  --chart-axis: #40536d;
+  --chart-label: #9fb0c7;
+  --chart-tooltip-bg: rgba(3, 9, 20, 0.96);
+  --chart-tooltip-text: #f8fbff;
+  --chart-point-bg: #101c2d;
+  --chart-asset: #34d399;
+  --chart-net: #60a5fa;
+  --chart-liability: #fb7185;
+  --chart-1: #60a5fa;
+  --chart-2: #34d399;
+  --chart-3: #fbbf24;
+  --chart-4: #a78bfa;
+  --chart-5: #fb7185;
+  --chart-6: #22d3ee;
+}
+
+html[data-theme="dark"] body {
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.16), transparent 34%),
+    radial-gradient(circle at 90% 8%, rgba(52, 211, 153, 0.08), transparent 24%),
+    var(--bg);
+}
+
+html[data-theme="dark"] .sidebar {
+  background: rgba(7, 17, 31, 0.9);
+}
+
+html[data-theme="dark"] :is(.panel, .metric-card, .settings-launcher, .account-card, .account-group, .health-card, .bar-line, .gain-column, .currency-exposure-card, .contribution-total-card, .dashboard-action-card, .dashboard-recent-item, .snapshot-meta-grid, .snapshot-rate-editor, .snapshot-history-toolbar, .check-row, .backup-fallback, .import-preview-dialog, .app-dialog) {
+  border-color: var(--line-soft);
+  background: var(--panel);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] :is(.sidebar-note, .line-chart, .trend-controls, .account-management-group, .dashboard-account-panel .account-group, .analysis-health-panel, .analysis-report-launcher, .balance-group, .backup-section, .import-range-panel) {
+  border-color: var(--line-soft);
+  background: var(--panel-tint);
+}
+
+html[data-theme="dark"] :is(.account-sheet, .sheet-heading, .form-actions, #snapshotForm > .form-actions, .type-editor-actions, .import-preview-actions) {
+  border-color: var(--line-soft);
+  background: rgba(16, 28, 45, 0.96);
+}
+
+html[data-theme="dark"] .sheet-backdrop,
+html[data-theme="dark"] .import-preview-backdrop,
+html[data-theme="dark"] .dialog-backdrop {
+  background: var(--overlay);
+}
+
+html[data-theme="dark"] :is(input, select, textarea, .tab, .ghost-button, .secondary-button, .file-button, .control-select, .control-select-button, .trend-toggle, .trend-period, .sheet-close) {
+  border-color: var(--line);
+  background-color: var(--panel-tint);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] :is(input, select, textarea):focus {
+  border-color: var(--blue);
+  outline-color: var(--focus-ring);
+}
+
+html[data-theme="dark"] :is(.account-group-heading, .balance-group-heading, .dashboard-account-panel .account-group-heading, .account-management-group .account-group-heading) {
+  background: #16263d;
+}
+
+html[data-theme="dark"] :is(.dashboard-account-panel .account-detail-row, .account-management-group .account-card, .balance-field-inputs input, .backup-overview-grid article) {
+  background: var(--panel);
+}
+
+html[data-theme="dark"] :is(.dashboard-kpis .metric-card strong, .account-card-side strong, .brand strong, .panel-heading h2, .backup-section-heading h3) {
+  color: var(--ink);
+}
+
+html[data-theme="dark"] .net-worth-hero,
+html[data-theme="dark"] .dashboard-action-card--primary {
+  background: linear-gradient(135deg, #154fc3, #2563eb 55%, #3b82f6);
+  color: #fff;
+}
+
+html[data-theme="dark"] .danger-zone,
+html[data-theme="dark"] .danger-button,
+html[data-theme="dark"] .dialog-required-text {
+  border-color: rgba(251, 113, 133, 0.36);
+  background: rgba(127, 29, 29, 0.16);
+}
+
+html[data-theme="dark"] .import-preview-warnings {
+  border-color: rgba(251, 191, 36, 0.34);
+  background: rgba(120, 53, 15, 0.2);
+  color: #fcd34d;
+}
+
+html[data-theme="dark"] .import-preview-repairs {
+  border-color: rgba(56, 189, 248, 0.34);
+  background: rgba(8, 47, 73, 0.28);
+  color: #7dd3fc;
+}
+
+html[data-theme="dark"] .bar-track {
+  background: #25364d;
+}
+
+html[data-theme="dark"] .trend-tooltip rect {
+  filter: drop-shadow(0 10px 18px rgba(0, 0, 0, 0.42));
+}
+
+@media (max-width: 600px) {
+  .backup-overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .backup-text-toolbar,
+  .import-range-fields {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .csv-range-controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .csv-range-type {
+    grid-column: 1 / -1;
+  }
+
+  .csv-range-controls input,
+  .csv-range-controls select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .backup-text-toolbar .ghost-button {
+    margin-left: 0;
+  }
+
+  .import-range-panel > div:first-child {
+    display: grid;
+  }
+
+  .danger-zone {
+    grid-template-columns: 1fr;
+  }
+
+  .danger-zone .danger-button {
+    width: 100%;
+  }
 }
 
 * {
@@ -438,7 +833,7 @@ main {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .balance-group-heading {
@@ -513,7 +908,7 @@ main {
   margin: 14px 0;
   padding: 10px 12px;
   border-left: 3px solid var(--blue);
-  background: #f4f7ff;
+  background: var(--surface-selected);
   line-height: 1.6;
 }
 
@@ -532,7 +927,7 @@ main {
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 #typeGroupForm {
@@ -556,7 +951,7 @@ main {
   justify-content: flex-start;
   gap: 12px;
   padding: 12px;
-  background: #f3f6fb;
+  background: var(--surface-page);
 }
 
 .type-group-heading .icon-button {
@@ -587,7 +982,7 @@ main {
   overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-panel);
 }
 
 .manager-toolbar,
@@ -654,7 +1049,7 @@ main {
 .type-chip button {
   border: 0;
   border-left: 1px solid var(--line);
-  background: #fff;
+  background: var(--control-bg);
   color: var(--muted);
   cursor: pointer;
 }
@@ -683,7 +1078,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px 10px;
-  background: #fff;
+  background: var(--control-bg);
   color: var(--ink);
 }
 
@@ -867,7 +1262,7 @@ textarea {
   height: 36px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--control-bg);
   color: var(--muted);
   cursor: pointer;
   font-size: 24px;
@@ -1177,7 +1572,7 @@ textarea {
   padding: 2px 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #f8fafc;
+  background: var(--surface-raised);
   color: var(--ink);
   font-size: 11px;
   font-weight: 600;
@@ -1185,7 +1580,7 @@ textarea {
 
 .trend-toggle:has(input:checked) {
   border-color: #c7d7ff;
-  background: #eef4ff;
+  background: var(--surface-selected);
   color: #2357c6;
 }
 
@@ -1202,7 +1597,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 999px;
   padding: 0 9px;
-  background: #fff;
+  background: var(--control-bg);
   color: var(--muted);
   cursor: pointer;
   font-size: 11px;
@@ -1288,7 +1683,7 @@ textarea {
   padding: 3px 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #f8fafc;
+  background: var(--surface-raised);
   color: var(--ink);
   font-size: 11px;
   font-weight: 600;
@@ -1297,9 +1692,9 @@ textarea {
 }
 
 .snapshot-filter-tag:has(input:checked) {
-  border-color: #c7d7ff;
-  background: #eef4ff;
-  color: #2357c6;
+  border-color: var(--border-selected);
+  background: var(--surface-selected);
+  color: var(--text-selected);
 }
 
 .snapshot-filter-tag input {
@@ -1314,7 +1709,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
-  background: #fff;
+  background: var(--surface-panel);
 }
 
 .snapshot-month-group + .snapshot-month-group {
@@ -1326,7 +1721,7 @@ textarea {
   align-items: center;
   justify-content: space-between;
   padding: 11px 12px;
-  background: #f3f6fb;
+  background: var(--surface-page);
   cursor: pointer;
   font-weight: 700;
 }
@@ -1369,7 +1764,7 @@ textarea {
 .snapshot-row {
   grid-template-columns: minmax(0, 1fr) auto;
   width: 100%;
-  background: #fff;
+  background: var(--surface-panel);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -1407,8 +1802,8 @@ textarea {
 .snapshot-tags span {
   padding: 1px 6px;
   border-radius: 999px;
-  background: #eef4ff;
-  color: #2357c6;
+  background: var(--surface-selected);
+  color: var(--text-selected);
   font-size: 10px;
   font-weight: 700;
   line-height: 1.5;
@@ -1433,7 +1828,7 @@ textarea {
   padding: 4px 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #f8fafc;
+  background: var(--surface-raised);
   color: var(--ink);
   font-size: 12px;
   font-weight: 600;
@@ -1442,9 +1837,9 @@ textarea {
 }
 
 .tag-choice:has(input:checked) {
-  border-color: #c7d7ff;
-  background: #eef4ff;
-  color: #2357c6;
+  border-color: var(--border-selected);
+  background: var(--surface-selected);
+  color: var(--text-selected);
 }
 
 .tag-choice input {
@@ -1467,7 +1862,7 @@ textarea {
   padding: 3px 5px 3px 8px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  background: #fff;
+  background: var(--surface-panel);
 }
 
 .snapshot-tag-add input {
@@ -1491,7 +1886,7 @@ textarea {
   padding: 0;
   border: 1px solid var(--line);
   border-radius: 50%;
-  background: #f8fafc;
+  background: var(--surface-raised);
   color: var(--muted);
   font-size: 13px;
   font-weight: 800;
@@ -1500,8 +1895,8 @@ textarea {
 }
 
 .snapshot-tag-add-action.is-confirm {
-  border-color: #bfdbfe;
-  background: #eef4ff;
+  border-color: var(--border-selected);
+  background: var(--surface-selected);
   color: var(--blue);
 }
 
@@ -1516,7 +1911,7 @@ textarea {
   padding: 6px 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-panel);
 }
 
 .tag-manager-item input[data-tag-name] {
@@ -1562,7 +1957,7 @@ textarea {
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface-panel);
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.22);
 }
 
@@ -1662,7 +2057,7 @@ textarea {
   margin-top: 18px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .archived-accounts > summary {
@@ -1718,7 +2113,7 @@ textarea {
   height: 34px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--control-bg);
   color: var(--muted);
   font-size: 20px;
   line-height: 1;
@@ -1737,7 +2132,7 @@ textarea {
 .is-drag-over {
   outline: 2px solid var(--blue);
   outline-offset: 2px;
-  background: #eef4ff;
+  background: var(--surface-selected);
 }
 
 .account-management-group {
@@ -1790,7 +2185,7 @@ textarea {
   height: 34px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--control-bg);
   color: var(--ink);
   cursor: pointer;
   padding: 0;
@@ -1812,8 +2207,8 @@ textarea {
 }
 
 .secondary-icon:hover {
-  border-color: #9db8f5;
-  background: #f4f7ff;
+  border-color: var(--border-selected);
+  background: var(--control-hover);
   color: var(--blue);
 }
 
@@ -1859,7 +2254,7 @@ textarea {
   justify-content: space-between;
   gap: 12px;
   padding: 11px 12px;
-  background: #f3f6fb;
+  background: var(--surface-page);
 }
 
 .account-group-heading[role="button"] {
@@ -1868,7 +2263,7 @@ textarea {
 }
 
 .account-group-heading[role="button"]:hover {
-  background: #eef4ff;
+  background: var(--surface-selected);
 }
 
 .account-group-heading[role="button"]:focus-visible {
@@ -1954,12 +2349,12 @@ textarea {
   height: 300px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
   overflow: visible;
 }
 
 .chart-axis-label {
-  fill: #7d8aa2;
+  fill: var(--chart-label);
   font-family: inherit;
   font-size: 12px;
   font-weight: 600;
@@ -1970,14 +2365,14 @@ textarea {
 }
 
 .chart-grid-line {
-  stroke: #dce5f2;
+  stroke: var(--chart-grid);
   stroke-dasharray: 4 5;
   stroke-width: 1;
 }
 
 .chart-axis-line,
 .chart-x-tick {
-  stroke: #d6dfec;
+  stroke: var(--chart-axis);
   stroke-width: 1;
 }
 
@@ -1992,12 +2387,12 @@ textarea {
 }
 
 .trend-tooltip rect {
-  fill: rgba(17, 24, 39, 0.92);
+  fill: var(--chart-tooltip-bg);
   filter: drop-shadow(0 10px 18px rgba(15, 23, 42, 0.18));
 }
 
 .trend-tooltip text {
-  fill: #fff;
+  fill: var(--chart-tooltip-text);
   font-family: inherit;
   font-weight: 600;
 }
@@ -2259,7 +2654,7 @@ textarea {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .health-account-scope-heading,
@@ -2310,7 +2705,7 @@ textarea {
   padding: 4px 8px;
   border: 1px solid var(--line-soft);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-panel);
 }
 
 #healthScopeSheet .account-sheet {
@@ -2347,7 +2742,7 @@ textarea {
   padding: 11px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .report-summary-grid span {
@@ -2514,7 +2909,7 @@ textarea {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .contribution-row {
@@ -2672,7 +3067,7 @@ textarea {
   min-width: 0;
   border: 1px solid transparent;
   border-radius: 3px;
-  background: #edf1f7;
+  background: var(--heatmap-empty);
   color: var(--muted);
   font-size: 9px;
   font-weight: 700;
@@ -2726,7 +3121,7 @@ textarea {
   padding: 6px 7px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #edf1f7;
+  background: var(--heatmap-empty);
   color: var(--muted);
 }
 
@@ -2764,7 +3159,7 @@ textarea {
   padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .heatmap-detail-panel h3 {
@@ -2818,7 +3213,7 @@ textarea {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .currency-exposure-track {
@@ -2826,7 +3221,7 @@ textarea {
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
-  background: #edf1f7;
+  background: var(--track-bg);
 }
 
 .currency-exposure-track i {
@@ -2885,7 +3280,7 @@ textarea {
   padding: 8px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .snapshot-calendar-month h3 {
@@ -3188,7 +3583,7 @@ textarea {
   padding: 10px 12px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .gain-column-heading {
@@ -3303,7 +3698,7 @@ textarea {
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e9eef7;
+  background: var(--track-bg);
 }
 
 .gain-track i {
@@ -3333,7 +3728,7 @@ textarea {
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .health-scope-account-groups {
@@ -3369,7 +3764,7 @@ textarea {
 }
 
 .health-scope-account-group-chip {
-  background: #fff;
+  background: var(--surface-panel);
 }
 
 .health-scope-group-toggle {
@@ -3458,7 +3853,7 @@ textarea {
   width: 26px;
   height: 26px;
   border-radius: 999px;
-  background: #eef4ff;
+  background: var(--surface-selected);
   color: var(--blue);
   font-size: 12px;
   font-weight: 800;
@@ -3494,7 +3889,7 @@ textarea {
   height: 7px;
   overflow: hidden;
   border-radius: 999px;
-  background: #e9eef7;
+  background: var(--track-bg);
 }
 
 .health-detail-track i {
@@ -3521,7 +3916,7 @@ textarea {
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 8px;
-  background: #f8fafc;
+  background: var(--surface-raised);
 }
 
 .treemap-toolbar {
@@ -3812,7 +4207,7 @@ textarea {
   border: 1px solid #c7d7ff;
   border-radius: 999px;
   padding: 3px 8px;
-  background: #eef4ff;
+  background: var(--surface-selected);
   color: var(--blue);
   font-size: 12px;
   font-weight: 800;
@@ -3836,7 +4231,7 @@ textarea {
   padding: 9px 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-panel);
 }
 
 .import-preview-grid span {
@@ -3925,7 +4320,7 @@ textarea {
   margin-top: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
 }
 
 .backup-fallback summary {
@@ -3948,7 +4343,7 @@ textarea {
   border-radius: 8px;
   padding: 10px;
   resize: vertical;
-  background: #fff;
+  background: var(--control-bg);
   color: var(--ink);
   font-family: Consolas, monospace;
   font-size: 12px;
@@ -4323,7 +4718,7 @@ select {
   user-select: none;
 }
 
-/* v0.2.0 / res v138 visual refresh */
+/* v0.2.1 / res v139 visual refresh */
 .page-title {
   min-width: 0;
 }
@@ -4682,6 +5077,55 @@ html.is-touch-shell .analysis-view .health-card:hover {
 
 .dashboard-trend-panel .line-chart {
   height: 340px;
+}
+
+/* Wide-screen dashboard density: keep the trend chart inside the first viewport. */
+@media (min-width: 1181px) {
+  .dashboard-main {
+    gap: 14px;
+  }
+
+  .dashboard-hero-grid {
+    gap: 14px;
+  }
+
+  .net-worth-hero {
+    min-height: 174px;
+    row-gap: 2px;
+    padding: 20px 24px;
+  }
+
+  .net-worth-hero > span,
+  .net-worth-hero > small {
+    line-height: 1.2;
+  }
+
+  .net-worth-hero > strong {
+    line-height: 1.1;
+  }
+
+  .net-worth-delta {
+    margin-top: 0;
+    line-height: 1.2;
+  }
+
+  .dashboard-kpis {
+    gap: 10px;
+  }
+
+  .dashboard-kpis .metric-card {
+    gap: 4px;
+    min-height: 82px;
+    padding: 12px 14px;
+  }
+
+  .dashboard-trend-panel {
+    padding: 16px 18px 18px;
+  }
+
+  .dashboard-trend-panel .panel-heading {
+    margin-bottom: 8px;
+  }
 }
 
 .line-chart {
@@ -6832,5 +7276,276 @@ html.is-touch-shell .sheet-heading-actions {
 
   .bar-info {
     gap: 8px;
+  }
+}
+
+/* Dark-theme component corrections kept last so legacy light literals cannot win. */
+html[data-theme="dark"] :is(
+  .analysis-trend-block,
+  .asset-treemap,
+  .treemap-canvas,
+  .gain-analysis,
+  .gain-filter-bar,
+  .gain-summary-card,
+  .snapshot-heatmap,
+  .heatmap-controls,
+  .heatmap-month,
+  .contribution-column,
+  .trend-account-popover,
+  .treemap-tooltip
+) {
+  border-color: var(--line-soft);
+  background: var(--panel-tint);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] #analysisView :is(select, input, button.control-select-button) {
+  border-color: var(--line);
+  background-color: var(--panel);
+  color: var(--ink);
+}
+
+html[data-theme="dark"] :is(.line-chart, .analysis-trend-block .line-chart) {
+  border-color: var(--line-soft);
+  background: linear-gradient(180deg, var(--panel), var(--panel-tint));
+}
+
+html[data-theme="dark"] :is(.currency-exposure-track, .contribution-track, .gain-bar-track) {
+  background: #25364d;
+}
+
+html[data-theme="dark"] .heatmap-day-cell:not(.has-data) {
+  border-color: var(--line-soft);
+  background: #17263a;
+  color: var(--muted);
+}
+
+html[data-theme="dark"] :is(.gain-summary-card, .contribution-column) b,
+html[data-theme="dark"] :is(.gain-summary-card, .contribution-column) strong {
+  color: var(--ink);
+}
+
+/* v139 data-management density refinement */
+#backupSettingsSheet .account-sheet {
+  --sheet-padding: 14px;
+}
+
+#backupSettingsSheet .sheet-heading {
+  margin-bottom: 10px;
+}
+
+#backupSettingsSheet .sheet-heading h2 {
+  font-size: 17px;
+}
+
+#backupSettingsSheet .sheet-heading span {
+  font-size: 11px;
+}
+
+#backupSettingsSheet .backup-section {
+  gap: 7px;
+  margin-top: 8px;
+  padding: 9px;
+  border-radius: 10px;
+}
+
+#backupSettingsSheet .backup-overview {
+  margin-top: 0;
+}
+
+#backupSettingsSheet .backup-section-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 12px;
+}
+
+#backupSettingsSheet .backup-section-heading h3 {
+  flex: 0 0 auto;
+  font-size: 14px;
+}
+
+#backupSettingsSheet .backup-section-heading p {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.3;
+  text-align: right;
+}
+
+#backupSettingsSheet .backup-overview-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#backupSettingsSheet .backup-overview-grid article {
+  min-height: 48px;
+  gap: 1px;
+  padding: 6px 8px;
+}
+
+#backupSettingsSheet .backup-overview-grid span {
+  font-size: 9.5px;
+}
+
+#backupSettingsSheet .backup-overview-grid b {
+  font-size: 13px;
+  line-height: 1.25;
+}
+
+#backupSettingsSheet .backup-button-grid {
+  gap: 6px;
+}
+
+#backupSettingsSheet .backup-button-grid button {
+  min-height: 34px;
+}
+
+#backupSettingsSheet .backup-fallback {
+  margin-top: 8px;
+}
+
+#backupSettingsSheet .backup-fallback summary {
+  padding: 8px 10px;
+  font-size: 13px;
+}
+
+#backupSettingsSheet .backup-fallback .hint {
+  padding: 0 10px 7px;
+  font-size: 10.5px;
+}
+
+#backupSettingsSheet .backup-text-toolbar {
+  gap: 6px;
+  padding: 0 10px 7px;
+}
+
+#backupSettingsSheet .backup-fallback textarea {
+  width: calc(100% - 20px);
+  min-height: 150px;
+  margin: 0 10px 8px;
+}
+
+#backupSettingsSheet .backup-text-import {
+  margin: 0 10px 9px;
+}
+
+#backupSettingsSheet .csv-range-controls {
+  gap: 6px;
+}
+
+#backupSettingsSheet .csv-range-controls label {
+  gap: 3px;
+  font-size: 9.5px;
+}
+
+#backupSettingsSheet .csv-range-controls select,
+#backupSettingsSheet .csv-range-controls input {
+  min-height: 34px;
+}
+
+#backupSettingsSheet .backup-inline-summary {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.25;
+}
+
+#backupSettingsSheet .csv-format-help {
+  font-size: 10px;
+}
+
+#backupSettingsSheet .danger-zone {
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 9px;
+}
+
+#backupSettingsSheet .danger-zone h3 {
+  margin-bottom: 2px;
+  font-size: 13px;
+}
+
+#backupSettingsSheet .danger-zone p {
+  font-size: 10.5px;
+  line-height: 1.3;
+}
+
+#backupSettingsSheet .danger-zone .danger-button {
+  width: auto;
+  min-height: 34px;
+}
+
+#backupSettingsSheet #backupStatus:empty {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  #backupSettingsSheet .backup-overview-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  #backupSettingsSheet .backup-section-heading {
+    display: grid;
+    justify-content: stretch;
+    gap: 1px;
+  }
+
+  #backupSettingsSheet .backup-section-heading p {
+    overflow: hidden;
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  #backupSettingsSheet .danger-zone {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  #backupSettingsSheet .danger-zone .danger-button {
+    width: auto;
+    padding-inline: 9px;
+    font-size: 11px;
+  }
+}
+
+/* v139 mobile navigation dark-theme correction */
+@media (max-width: 1180px) {
+  html[data-theme="dark"] .tabs {
+    border-color: var(--line);
+    background: rgba(10, 20, 35, 0.94);
+    box-shadow: 0 18px 40px rgba(0, 0, 0, 0.42);
+  }
+
+  html[data-theme="dark"] .tabs .tab {
+    border-color: transparent;
+    background: transparent;
+    color: var(--muted);
+  }
+
+  html[data-theme="dark"] .tabs .tab .ui-icon {
+    color: var(--muted);
+  }
+
+  html[data-theme="dark"] .tabs .tab.active {
+    background: var(--blue-soft);
+    color: #dbeafe;
+  }
+
+  html[data-theme="dark"] .tabs .tab.active .ui-icon {
+    color: var(--chart-net);
+  }
+
+  html[data-theme="dark"].is-mobile-shell .mobile-snapshot-tab {
+    background: transparent;
+    color: var(--muted);
+  }
+
+  html[data-theme="dark"].is-mobile-shell .mobile-snapshot-tab i {
+    border-color: #0a1423;
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.48);
+  }
+
+  html[data-theme="dark"].is-mobile-shell .mobile-snapshot-tab span {
+    color: var(--muted);
   }
 }

@@ -7,7 +7,20 @@
     <meta name="description" content="本地资产余额快照记账 PWA" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./icon.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="./styles.css?v=138" />
+    <script>
+      (() => {
+        try {
+          const saved = JSON.parse(localStorage.getItem("asset-snapshot-book-v1") || "null");
+          const preference = saved?.settings?.theme || "system";
+          const isDark = preference === "dark" || (preference === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.dataset.theme = isDark ? "dark" : "light";
+          document.documentElement.style.colorScheme = isDark ? "dark" : "light";
+        } catch {
+          document.documentElement.dataset.theme = "light";
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="./styles.css?v=139&ui=2" />
     <title>资产快照本</title>
   </head>
   <body>
@@ -36,7 +49,7 @@
           <span class="brand-mark" aria-hidden="true">资</span>
           <div>
             <strong>资产快照本</strong>
-            <span>v0.2.0 / res v138</span>
+            <span>v0.2.1 / res v139</span>
           </div>
         </div>
 
@@ -61,7 +74,7 @@
             <span class="brand-mark" aria-hidden="true">资</span>
             <div>
               <strong>资产快照本</strong>
-              <span>v0.2.0 / res v138</span>
+              <span>v0.2.1 / res v139</span>
             </div>
           </div>
           <div class="page-title">
@@ -663,6 +676,7 @@
             <button class="settings-launcher" data-open-sheet="currencySettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-currency"></use></svg></i><b>货币设置</b><span>主货币及可用货币</span></button>
             <button class="settings-launcher" data-open-sheet="rateSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-trend"></use></svg></i><b>汇率调整</b><span>手动维护换算汇率</span></button>
             <button class="settings-launcher" data-open-sheet="backupSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-snapshot"></use></svg></i><b>数据管理</b><span>数据备份与导入</span></button>
+            <button class="settings-launcher" data-open-sheet="appearanceSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg></i><b>外观模式</b><span>跟随系统、浅色或深色</span></button>
             <button class="settings-launcher" data-open-sheet="typeSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-accounts"></use></svg></i><b>账户类型</b><span>管理大类与小类</span></button>
             <button class="settings-launcher" data-open-sheet="tagSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-filter"></use></svg></i><b>快照标签</b><span>管理快照原因标签</span></button>
             <button class="settings-launcher" id="openFeatureIntro" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg></i><b>功能介绍</b><span>了解工具用途</span></button>
@@ -716,32 +730,61 @@
         <div class="sheet-backdrop settings-sheet-backdrop" id="backupSettingsSheet" hidden>
           <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="backupSettingsTitle">
             <div class="sheet-heading"><div><h2 id="backupSettingsTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-snapshot"></use></svg>数据管理</h2><span>数据备份与导入，本地文件不上传</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
-            <div class="action-grid">
-              <button class="secondary-button" id="exportJson" type="button">导出 JSON 备份</button>
-              <button class="secondary-button" id="copyJson" type="button">复制 JSON 备份</button>
-              <button class="secondary-button" id="exportCsv" type="button">导出 CSV 快照</button>
-              <button class="secondary-button" id="chooseJson" type="button">导入 JSON 备份</button>
-              <button class="secondary-button" id="chooseCsv" type="button">导入 CSV 快照</button>
-              <input id="importJson" accept="application/json,.json" type="file" hidden />
-              <input id="importCsv" accept=".csv,text/csv" type="file" hidden />
-            </div>
-            <p id="backupStatus" class="operation-status" role="status" aria-live="polite"></p>
-            <section class="danger-zone" aria-labelledby="deleteAllDataTitle">
-              <div>
-                <h3 id="deleteAllDataTitle">删除全部数据</h3>
-                <p>高风险操作：会删除本浏览器中保存的全部账户、快照、货币、分类和标签设置。删除后无法撤销，请先导出 JSON 备份。</p>
+            <section class="backup-section backup-overview" aria-labelledby="backupOverviewTitle">
+              <div class="backup-section-heading"><h3 id="backupOverviewTitle">当前数据概览</h3><p>所有数据仅保存在当前浏览器中，不会自动上传。</p></div>
+              <div id="backupOverviewGrid" class="backup-overview-grid"></div>
+            </section>
+            <section class="backup-section" aria-labelledby="completeBackupTitle">
+              <div class="backup-section-heading"><h3 id="completeBackupTitle">完整备份与恢复</h3><p>包含账户、快照、货币、分类、标签和业务设置，不含本机外观。</p></div>
+              <div class="backup-button-grid">
+                <button class="primary-button" id="exportJson" type="button">导出 JSON</button>
+                <button class="secondary-button" id="chooseJson" type="button">导入 JSON</button>
+                <input id="importJson" accept="application/json,.json" type="file" hidden />
               </div>
-              <button class="danger-button" id="deleteAllData" type="button">删除全部数据</button>
             </section>
             <details id="backupFallback" class="backup-fallback">
-              <summary>查看 JSON 备份文本</summary>
-              <p class="hint">若浏览器禁止下载或复制，可手动复制下方内容。恢复时也可把 JSON 粘贴到这里，再点击导入。</p>
+              <summary>JSON 备份文本</summary>
+              <p class="hint">可生成当前完整备份并复制，也可粘贴备份文本后预检导入。</p>
+              <div class="backup-text-toolbar">
+                <button class="secondary-button" id="generateJsonText" type="button">生成最新文本</button>
+                <button class="secondary-button" id="copyJson" type="button">一键复制</button>
+                <button class="ghost-button" id="clearJsonText" type="button">清空文本</button>
+              </div>
               <textarea id="backupText" spellcheck="false" aria-label="JSON 备份文本"></textarea>
-              <button class="secondary-button backup-text-import" id="importJsonText" type="button">从文本导入 JSON</button>
+              <button class="secondary-button backup-text-import" id="importJsonText" type="button">预检并导入</button>
             </details>
-            <p class="hint">
-              CSV 格式：date,account,balance,currency,tags,note。导入时会按账户名称匹配，找不到会自动创建账户。
-            </p>
+            <section class="backup-section csv-transfer-section" aria-labelledby="csvTransferTitle">
+              <div class="backup-section-heading"><h3 id="csvTransferTitle">CSV 快照交换</h3><p>仅包含账户与历史快照；不包含完整应用设置。导入时按账户名称合并。</p></div>
+              <div class="csv-range-controls">
+                <label class="csv-range-type">时间范围<select id="csvExportRange"><option value="all">全部时间</option><option value="30d">最近 30 天</option><option value="90d">最近 90 天</option><option value="year">今年</option><option value="custom">自定义范围</option></select></label>
+                <label class="csv-custom-date" hidden>开始日期<input id="csvExportFrom" type="date" /></label>
+                <label class="csv-custom-date" hidden>结束日期<input id="csvExportTo" type="date" /></label>
+              </div>
+              <p id="csvExportSummary" class="backup-inline-summary"></p>
+              <div class="backup-button-grid">
+                <button class="secondary-button" id="exportCsv" type="button">导出 CSV</button>
+                <button class="secondary-button" id="chooseCsv" type="button">导入 CSV</button>
+                <input id="importCsv" accept=".csv,text/csv" type="file" hidden />
+              </div>
+              <details class="csv-format-help"><summary>查看 CSV 格式说明</summary><p>表头包含 date、account、balance、costBasis、currency、group、type、includeInNetWorth、archived、tags、note。</p></details>
+            </section>
+            <p id="backupStatus" class="operation-status" role="status" aria-live="polite"></p>
+            <section class="danger-zone" aria-labelledby="deleteAllDataTitle">
+              <div><h3 id="deleteAllDataTitle">删除全部数据</h3><p>会删除当前浏览器中的全部账户、快照和设置，且无法撤销。请先导出完整备份。</p></div>
+              <button class="danger-button" id="deleteAllData" type="button">删除全部数据</button>
+            </section>
+          </section>
+        </div>
+
+        <div class="sheet-backdrop settings-sheet-backdrop" id="appearanceSettingsSheet" hidden>
+          <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="appearanceSettingsTitle">
+            <div class="sheet-heading"><div><h2 id="appearanceSettingsTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg>外观模式</h2><span>选择应用的明暗外观</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
+            <div class="theme-options" role="radiogroup" aria-label="外观模式">
+              <label><input type="radio" name="themeMode" value="system" /><span><b>跟随系统</b><small>系统切换明暗模式时自动同步</small></span></label>
+              <label><input type="radio" name="themeMode" value="light" /><span><b>浅色</b><small>始终使用浅色界面</small></span></label>
+              <label><input type="radio" name="themeMode" value="dark" /><span><b>深色</b><small>使用深蓝黑背景和深色面板</small></span></label>
+            </div>
+            <p class="hint">外观设置仅保存在本机，不随完整 JSON 备份迁移。</p>
           </section>
         </div>
 
@@ -847,6 +890,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=138" defer></script>
+    <script src="./app.js?v=139" defer></script>
   </body>
 </html>
