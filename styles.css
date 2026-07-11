@@ -3737,7 +3737,7 @@ textarea {
   padding: 14px;
   border: 1px solid var(--line-soft);
   border-radius: 10px;
-  background: linear-gradient(180deg, #f8fbff, #fff);
+  background: linear-gradient(180deg, var(--surface-raised), var(--surface-panel));
 }
 
 .health-scope-section-heading {
@@ -3816,12 +3816,12 @@ textarea {
   padding: 0 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-panel);
 }
 
 .health-scope-chip.is-disabled {
-  border-color: #e5e9f2;
-  background: #f7f9fc;
+  border-color: var(--border-soft);
+  background: var(--surface-raised);
   opacity: 0.72;
 }
 
@@ -3841,7 +3841,7 @@ textarea {
   padding: 10px;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fbfcff;
+  background: var(--surface-raised);
   color: inherit;
   font: inherit;
   text-align: left;
@@ -5081,6 +5081,15 @@ html.is-touch-shell .analysis-view .health-card:hover {
 
 /* Wide-screen dashboard density: keep the trend chart inside the first viewport. */
 @media (min-width: 1181px) {
+  .page-title h1 {
+    font-size: 34px;
+  }
+
+  .dashboard-layout,
+  .accounts-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.38fr);
+  }
+
   .dashboard-main {
     gap: 14px;
   }
@@ -5748,9 +5757,10 @@ textarea:focus {
   display: inline-grid;
   place-items: center;
   flex: 0 0 auto;
-  width: var(--icon-badge);
-  height: var(--icon-badge);
-  border-radius: 9px;
+  width: 16px;
+  height: 16px;
+  overflow: visible;
+  border-radius: 5px;
   background: var(--blue-soft);
   color: var(--blue);
 }
@@ -5760,6 +5770,8 @@ textarea:focus {
   content: "";
   position: absolute;
   border-color: currentColor;
+  scale: 0.58;
+  transform-origin: center;
 }
 
 .health-card-icon::before {
@@ -7547,5 +7559,12 @@ html[data-theme="dark"] :is(.gain-summary-card, .contribution-column) strong {
 
   html[data-theme="dark"].is-mobile-shell .mobile-snapshot-tab span {
     color: var(--muted);
+  }
+}
+
+/* Keep desktop content/side columns aligned across dashboard, accounts and analysis. */
+@media (min-width: 1181px) {
+  .accounts-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 0.38fr);
   }
 }
