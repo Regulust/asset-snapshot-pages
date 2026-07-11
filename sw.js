@@ -1,9 +1,9 @@
-const CACHE_NAME = "asset-snapshot-book-v139-ui8";
+const CACHE_NAME = "asset-snapshot-book-v140-ui13";
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=139&ui=8",
-  "./app.js?v=139&ui=8",
+  "./styles.css?v=140&ui=13",
+  "./app.js?v=140&ui=13",
   "./manifest.webmanifest",
   "./icon.svg",
 ];

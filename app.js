@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v0.2.1 / res v139";
+const APP_VERSION = "v0.2.1 / res v140";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -223,6 +223,9 @@ function applyTheme() {
   $$('input[name="themeMode"]').forEach((input) => {
     input.checked = input.value === normalizedTheme(state.settings.theme);
   });
+  // Palette-driven modules use inline SVG/fill colors and must be rebuilt on theme changes.
+  if ($("#healthCards")?.childElementCount) renderAnalysis();
+  if ($("#trendChart")?.childElementCount) renderDashboard();
   scheduleVisibleChartRender();
 }
 
@@ -240,9 +243,12 @@ function themeColor(name, fallback) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
-function chartPalette() {
-  const fallbacks = ["#2563eb", "#059669", "#b45309", "#7c3aed", "#dc2626", "#0891b2"];
-  return fallbacks.map((fallback, index) => themeColor(`--chart-${index + 1}`, fallback));
+function chartPalette(count = 6) {
+  const fallbacks = [
+    "#568fd8", "#52aa68", "#9259df", "#dc9a32", "#dc6578", "#43a9b8",
+    "#b76ac7", "#56aa90", "#dd8052", "#6f82d6", "#80aa4d", "#d16f9e",
+  ];
+  return fallbacks.slice(0, count).map((fallback, index) => themeColor(`--chart-${index + 1}`, fallback));
 }
 
 function updateUIShellClasses() {
@@ -2464,9 +2470,9 @@ function renderTrend() {
 
 function trendSeries() {
   return [
-    { key: "assets", label: "资产", color: themeColor("--chart-asset", "#2a9d76") },
-    { key: "liabilities", label: "负债", color: themeColor("--chart-liability", "#d95454") },
-    { key: "net", label: "净值", color: themeColor("--chart-net", "#2f63df") },
+    { key: "assets", label: "资产", color: themeColor("--chart-asset", "#45aa68") },
+    { key: "liabilities", label: "负债", color: themeColor("--chart-liability", "#df6574") },
+    { key: "net", label: "净值", color: themeColor("--chart-net", "#568fd8") },
   ];
 }
 
@@ -3376,7 +3382,7 @@ function hideLineChartTooltip(svg, chartId) {
 }
 
 function analysisTrendChartModel(points, mode, metric = analysisTrendMetricConfig()) {
-  const palette = [...chartPalette(), "#c026d3", "#0f766e", "#ea580c", "#4f46e5", "#16a34a", "#be123c"];
+  const palette = chartPalette(12);
   let chartPoints = points.map((point) => ({ ...point }));
   let series = [{ key: metric.totalKey, label: `总${metric.label}`, color: metric.color }];
   if (mode === "group") {
@@ -6983,7 +6989,7 @@ function reorderGroup(groupName, targetName, side = "before") {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js?v=139&ui=8").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=140&ui=13").catch(() => {});
   }
 }
 
