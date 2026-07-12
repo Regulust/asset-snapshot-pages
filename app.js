@@ -1,5 +1,5 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v0.2.1 / res v140";
+const APP_VERSION = "v0.2.1 / res v141";
 const DATA_SCHEMA_VERSION = 3;
 
 const currencies = [
@@ -103,6 +103,7 @@ const defaultState = {
     rates: Object.fromEntries(currencies.map((item) => [item.code, item.rate])),
     privacy: false,
     theme: "system",
+    liquidGlass: null,
     accountTypeGroups: structuredClone(DEFAULT_ACCOUNT_TYPE_GROUPS),
     healthConfig: structuredClone(DEFAULT_HEALTH_CONFIG),
     healthDenominatorConfig: {},
@@ -155,6 +156,9 @@ let analysisTrendPeriod = "month";
 let analysisHealthTrendPeriod = "month";
 let analysisTrendMode = "total";
 let analysisTrendMetric = "balance";
+let breakdownTrendScope = null;
+let breakdownTrendPeriod = "month";
+const visibleBreakdownTrendMetrics = new Set(["balance", "cost"]);
 const selectedAnalysisTrendAccountIds = new Set();
 const selectedAnalysisTrendTypeNames = new Set();
 let gainAnalysisFilterMode = "all";
@@ -223,10 +227,48 @@ function applyTheme() {
   $$('input[name="themeMode"]').forEach((input) => {
     input.checked = input.value === normalizedTheme(state.settings.theme);
   });
+  applyLiquidGlassPreference();
   // Palette-driven modules use inline SVG/fill colors and must be rebuilt on theme changes.
   if ($("#healthCards")?.childElementCount) renderAnalysis();
   if ($("#trendChart")?.childElementCount) renderDashboard();
   scheduleVisibleChartRender();
+}
+
+function liquidGlassCapability() {
+  const userAgent = navigator.userAgent || "";
+  const maxTouchPoints = navigator.maxTouchPoints || 0;
+  const iPhoneOrIPad = /iPhone|iPad|iPod/i.test(userAgent) || (/Macintosh/i.test(userAgent) && maxTouchPoints > 1);
+  const osMatch = userAgent.match(/(?:CPU(?: iPhone)? OS|iPhone OS) (\d+)[._]/i);
+  const osMajor = Number(osMatch?.[1] || 0);
+  const standalone = navigator.standalone === true || window.matchMedia?.("(display-mode: standalone)").matches === true;
+  const webkit = /AppleWebKit/i.test(userAgent);
+  const filterSupport = Boolean(window.CSS?.supports?.("backdrop-filter", "blur(1px)") || window.CSS?.supports?.("-webkit-backdrop-filter", "blur(1px)"));
+  const recommended = iPhoneOrIPad && osMajor >= 26 && standalone && webkit && filterSupport;
+  const description = recommended
+    ? "当前 Apple 主屏 PWA 支持，建议开启"
+    : filterSupport
+      ? "当前平台可使用兼容玻璃效果"
+      : "当前平台将使用轻量半透明兼容效果";
+  return { recommended, filterSupport, description };
+}
+
+function liquidGlassEnabled() {
+  if (typeof state.settings.liquidGlass === "boolean") return state.settings.liquidGlass;
+  return liquidGlassCapability().recommended;
+}
+
+function applyLiquidGlassPreference() {
+  const capability = liquidGlassCapability();
+  const enabled = liquidGlassEnabled();
+  document.documentElement.classList.toggle("has-liquid-glass-nav", enabled);
+  document.documentElement.classList.toggle("supports-filtered-glass-nav", capability.filterSupport);
+  const toggle = $("#liquidGlassToggle");
+  if (toggle) {
+    toggle.checked = enabled;
+    toggle.disabled = false;
+  }
+  const supportText = $("#liquidGlassSupportText");
+  if (supportText) supportText.textContent = capability.description;
 }
 
 function bindThemePreference() {
@@ -407,6 +449,7 @@ function loadState() {
     const parsed = JSON.parse(raw);
     const settings = { ...defaultState.settings, ...(parsed.settings || {}) };
     settings.theme = normalizedTheme(settings.theme);
+    settings.liquidGlass = typeof settings.liquidGlass === "boolean" ? settings.liquidGlass : null;
     settings.customCurrencies = Array.isArray(settings.customCurrencies) ? settings.customCurrencies : [];
     settings.deletedCurrencyCodes = Array.isArray(settings.deletedCurrencyCodes) ? settings.deletedCurrencyCodes : [];
     const usedCurrencyCodes = (parsed.accounts || []).map((account) => account.currency);
@@ -1025,9 +1068,7 @@ function renderCurrencyOptions() {
   [...selectedCurrencyCodes].forEach((code) => {
     if (!validCodes.has(code)) selectedCurrencyCodes.delete(code);
   });
-  $("#toggleCurrencyManage").textContent = currencyManageMode ? "完成" : "管理";
-  $("#toggleCurrencyManage").classList.toggle("primary-button", currencyManageMode);
-  $("#toggleCurrencyManage").classList.toggle("secondary-button", !currencyManageMode);
+  renderManageButton($("#toggleCurrencyManage"), currencyManageMode);
   $("#deleteSelectedCurrencies").hidden = !currencyManageMode;
   $("#deleteSelectedCurrencies").disabled = selectedCurrencyCodes.size === 0;
   $("#currencyChoices").innerHTML = allCurrencies().map((item) => {
@@ -3523,13 +3564,13 @@ function renderGroups(total) {
       const percent = Math.abs(value) / denominator;
       const colors = chartPalette();
       return `
-        <div class="bar-line">
+        <button class="bar-line breakdown-bar-line" data-breakdown-trend-mode="group" data-breakdown-trend-key="${escapeHtml(group)}" type="button" aria-label="查看${escapeHtml(group)}余额与成本趋势">
           <div class="bar-info">
             <span>${escapeHtml(group)}</span>
             <span>${moneySpan(formatMoney(value))} · ${(percent * 100).toFixed(1)}%</span>
           </div>
           <div class="bar-track"><div class="bar-fill" style="width:${percent * 100}%; background:${colors[index % colors.length]}"></div></div>
-        </div>
+        </button>
       `;
     })
     .join("");
@@ -3554,16 +3595,145 @@ function renderTypeBreakdown(total) {
     .map(([name, value], index) => {
       const percent = Math.abs(value) / denominator;
       return `
-        <div class="bar-line">
+        <button class="bar-line breakdown-bar-line" data-breakdown-trend-mode="type" data-breakdown-trend-key="${escapeHtml(name)}" type="button" aria-label="查看${escapeHtml(name)}余额与成本趋势">
           <div class="bar-info">
             <span>${escapeHtml(name)}</span>
             <span>${moneySpan(formatMoney(value))} · ${(percent * 100).toFixed(1)}%</span>
           </div>
           <div class="bar-track"><div class="bar-fill" style="width:${percent * 100}%; background:${colors[index % colors.length]}"></div></div>
-        </div>
+        </button>
       `;
     })
     .join("");
+}
+
+function breakdownTrendAccounts() {
+  if (!breakdownTrendScope) return [];
+  return state.accounts.filter((account) => {
+    if (breakdownTrendScope.mode === "account") return account.id === breakdownTrendScope.key;
+    if (account.includeInNetWorth === false) return false;
+    if (breakdownTrendScope.mode === "group") return accountGroupName(account) === breakdownTrendScope.key;
+    return typeGroupLabelForType(account.type) === breakdownTrendScope.key;
+  });
+}
+
+function explicitSnapshotCost(snapshot, account) {
+  if (snapshot?.costs && Object.hasOwn(snapshot.costs, account.id)) {
+    return optionalNumber(snapshot.costs[account.id]);
+  }
+  return optionalNumber(account.costBasis);
+}
+
+function breakdownTrendData() {
+  const accounts = breakdownTrendAccounts();
+  return periodSnapshotPoints(breakdownTrendPeriod, periodConfig(breakdownTrendPeriod).limit).map((point) => {
+    const rates = snapshotRates(point.snapshot);
+    let balance = 0;
+    let cost = 0;
+    let hasCost = false;
+    accounts.forEach((account) => {
+      balance += convert(Number(point.snapshot.balances?.[account.id] || 0), account.currency, rates);
+      const explicitCost = explicitSnapshotCost(point.snapshot, account);
+      if (explicitCost === null) return;
+      cost += convert(explicitCost, account.currency, rates);
+      hasCost = true;
+    });
+    return { ...point, balance, cost, hasCost };
+  });
+}
+
+function breakdownTrendHasCost(points = breakdownTrendData()) {
+  return points.some((point) => point.hasCost);
+}
+
+function openBreakdownTrend(mode, key) {
+  breakdownTrendScope = { mode, key };
+  visibleBreakdownTrendMetrics.clear();
+  visibleBreakdownTrendMetrics.add("balance");
+  visibleBreakdownTrendMetrics.add("cost");
+  breakdownTrendPeriod = "month";
+  $("#breakdownTrendSheet").hidden = false;
+  document.body.classList.add("sheet-open");
+  renderBreakdownTrend();
+}
+
+function closeBreakdownTrendSheet() {
+  $("#breakdownTrendSheet").hidden = true;
+  breakdownTrendScope = null;
+  if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
+}
+
+function renderBreakdownTrend() {
+  if (!breakdownTrendScope) return;
+  const scopedAccounts = breakdownTrendAccounts();
+  const scopedAccount = breakdownTrendScope.mode === "account" ? scopedAccounts[0] : null;
+  const points = breakdownTrendData();
+  const hasCost = breakdownTrendHasCost(points);
+  if (!hasCost) visibleBreakdownTrendMetrics.delete("cost");
+  if (visibleBreakdownTrendMetrics.size === 0) visibleBreakdownTrendMetrics.add("balance");
+  const metricOptions = [
+    { key: "balance", label: "余额", color: themeColor("--chart-1", "#568fd8") },
+    { key: "cost", label: "成本", color: themeColor("--chart-4", "#dc9a32") },
+  ];
+  const activeMetrics = metricOptions.filter((metric) => visibleBreakdownTrendMetrics.has(metric.key));
+  const scopeKind = breakdownTrendScope.mode === "group" ? "账户分组" : breakdownTrendScope.mode === "type" ? "账户类型" : "账户";
+  const scopeName = scopedAccount?.name || breakdownTrendScope.key;
+  setIconHeading($("#breakdownTrendTitle"), "trend", `${scopeName}趋势`);
+  $("#breakdownTrendSubtitle").textContent = `${scopeKind} · 按历史快照查看余额与成本`;
+  $("#breakdownTrendHeading").textContent = `${activeMetrics.map((metric) => metric.label).join("与")}趋势`;
+  $("#breakdownTrendScopeLabel").textContent = hasCost ? "可同时显示余额与成本" : "该范围暂无成本记录，仅显示余额";
+  $$('[data-breakdown-trend-metric]').forEach((input) => {
+    const isCost = input.dataset.breakdownTrendMetric === "cost";
+    input.disabled = isCost && !hasCost;
+    input.checked = visibleBreakdownTrendMetrics.has(input.dataset.breakdownTrendMetric);
+    input.closest(".trend-toggle")?.classList.toggle("is-disabled", input.disabled);
+  });
+  const accountSummary = $("#breakdownAccountSummary");
+  accountSummary.hidden = !scopedAccount;
+  if (scopedAccount) {
+    const latest = latestSnapshot();
+    const latestBalance = Number(latest?.balances?.[scopedAccount.id] || 0);
+    const latestCost = explicitSnapshotCost(latest, scopedAccount);
+    accountSummary.innerHTML = `
+      <div><span>分组</span><b>${escapeHtml(accountGroupName(scopedAccount))}</b></div>
+      <div><span>类型</span><b>${escapeHtml(typeLabel(scopedAccount.type))}</b></div>
+      <div><span>币种</span><b>${escapeHtml(scopedAccount.currency)}</b></div>
+      <div><span>最新余额</span><b>${moneySpan(formatMoney(latestBalance, scopedAccount.currency))}</b></div>
+      ${latestCost === null ? "" : `<div><span>当前成本</span><b>${moneySpan(formatMoney(latestCost, scopedAccount.currency))}</b></div>`}
+      <div><span>净值口径</span><b>${scopedAccount.includeInNetWorth === false ? "不计入" : "计入"}</b></div>
+      ${scopedAccount.note ? `<p>${escapeHtml(scopedAccount.note)}</p>` : ""}
+    `;
+  } else {
+    accountSummary.innerHTML = "";
+  }
+  $$('[data-breakdown-trend-period]').forEach((button) => {
+    button.classList.toggle("active", button.dataset.breakdownTrendPeriod === breakdownTrendPeriod);
+  });
+  const summary = $("#breakdownTrendSummary");
+  const legend = $("#breakdownTrendLegend");
+  const svg = $("#breakdownTrendChart");
+  if (!points.length) {
+    summary.textContent = "暂无历史快照";
+    legend.innerHTML = "";
+    svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="currentColor">暂无趋势数据</text>`;
+    return;
+  }
+  const last = points[points.length - 1];
+  const previous = points[points.length - 2];
+  summary.innerHTML = activeMetrics.map((metric) => {
+    const value = last[metric.key] || 0;
+    const change = previous ? value - (previous[metric.key] || 0) : 0;
+    return `<span>最新${metric.label} ${moneySpan(formatMoney(value))}${previous ? ` · 较上一点 ${analysisTrendChangeHtml(change, metric.key)}` : ""}</span>`;
+  }).join("");
+  legend.innerHTML = activeMetrics.map((metric) => `<span><i style="background:${metric.color};"></i>${escapeHtml(scopeName)} · ${metric.label}</span>`).join("");
+  renderInteractiveLineChart(svg, points, activeMetrics, {
+    chartId: "breakdownTrend",
+    pad: { top: 28, right: 28, bottom: 50, left: 100 },
+    compactPad: { top: 24, right: 22, bottom: 44, left: 72 },
+    emptyText: "暂无趋势数据",
+    axisFormatter: (number) => state.settings.privacy ? privateMoneyPlaceholder() : compactMoney(number),
+    valueFormatter: (number) => state.settings.privacy ? privateMoneyPlaceholder() : formatMoney(number),
+  });
 }
 
 function renderCurrencyExposure(total = snapshotTotal(latestSnapshot())) {
@@ -3605,9 +3775,7 @@ function renderCurrencyExposure(total = snapshotTotal(latestSnapshot())) {
 }
 
 function renderAccountTable(total) {
-  $("#toggleOverviewAccountSort").textContent = overviewAccountSortMode ? "完成" : "排序";
-  $("#toggleOverviewAccountSort").classList.toggle("primary-button", overviewAccountSortMode);
-  $("#toggleOverviewAccountSort").classList.toggle("secondary-button", !overviewAccountSortMode);
+  renderManageButton($("#toggleOverviewAccountSort"), overviewAccountSortMode, "排序");
   const rows = total.accounts.filter(
     (row) => !row.account.archived && (row.account.includeInNetWorth !== false || row.raw !== 0)
   );
@@ -3651,7 +3819,7 @@ function renderAccountTable(total) {
               (row) => {
                 const { account, raw, converted } = row;
                 return `
-                <div class="table-row account-detail-row draggable-account" data-drop-account="${account.id}" data-account-group="${escapeHtml(group)}">
+                <div class="table-row account-detail-row account-trend-trigger draggable-account" data-drop-account="${account.id}" data-account-group="${escapeHtml(group)}" data-account-trend-id="${account.id}" ${overviewAccountSortMode ? "" : `role="button" tabindex="0" aria-label="查看${escapeHtml(account.name)}账户信息与趋势"`}>
                   <div class="drag-title">
                     ${overviewAccountSortMode ? `<button class="drag-handle" data-drag-account="${account.id}" data-account-group="${escapeHtml(group)}" type="button" title="拖动账户">⠿</button>` : ""}
                     <div>
@@ -3678,9 +3846,7 @@ function renderAccountTable(total) {
 
 function renderAccounts() {
   const list = $("#accountsList");
-  $("#toggleAccountSort").textContent = accountSortMode ? "完成" : "排序";
-  $("#toggleAccountSort").classList.toggle("primary-button", accountSortMode);
-  $("#toggleAccountSort").classList.toggle("secondary-button", !accountSortMode);
+  renderManageButton($("#toggleAccountSort"), accountSortMode, "排序");
   $("#accountSortHint").textContent = accountSortMode ? "拖动把手调整分组和账户顺序" : "按分组展示";
   if (state.accounts.length === 0) {
     list.innerHTML = emptyHtml();
@@ -3985,13 +4151,18 @@ function renderSnapshots() {
   [...selectedSnapshotIds].forEach((snapshotId) => {
     if (!validSnapshotIds.has(snapshotId)) selectedSnapshotIds.delete(snapshotId);
   });
-  $("#toggleSnapshotManage").textContent = snapshotManageMode ? "完成" : "快照管理";
-  $("#toggleSnapshotManage").classList.toggle("primary-button", snapshotManageMode);
-  $("#toggleSnapshotManage").classList.toggle("secondary-button", !snapshotManageMode);
+  renderManageButton($("#toggleSnapshotManage"), snapshotManageMode, "快照管理");
   $("#deleteSelectedSnapshots").hidden = !snapshotManageMode;
   $("#deleteSelectedSnapshots").disabled = selectedSnapshotIds.size === 0;
-  $("#selectFilteredSnapshots").hidden = !snapshotManageMode || filteredSnapshotsSorted().length === 0;
-  $("#selectFilteredSnapshots").textContent = selectedSnapshotIds.size ? "取消选择" : "筛选全选";
+  const filteredSnapshots = filteredSnapshotsSorted();
+  const filteredSelectedCount = filteredSnapshots.filter((snapshot) => selectedSnapshotIds.has(snapshot.id)).length;
+  const allFilteredSelected = filteredSnapshots.length > 0 && filteredSelectedCount === filteredSnapshots.length;
+  $("#selectFilteredSnapshots").hidden = !snapshotManageMode || filteredSnapshots.length === 0;
+  $("#selectFilteredSnapshots").textContent = allFilteredSelected
+    ? "取消筛选选择"
+    : filteredSelectedCount > 0
+      ? "补选筛选结果"
+      : "筛选全选";
   $("#toggleSnapshotHistoryView").textContent = snapshotHistoryView === "calendar" ? "列表视图" : "日历视图";
   if (reportMode) {
     snapshotManageMode = false;
@@ -4027,6 +4198,7 @@ function renderSnapshots() {
   }
   if (snapshotHistoryView === "calendar") {
     list.innerHTML = snapshotHistoryCalendarHtml(visibleSnapshots);
+    syncIndeterminateCheckboxes(list);
     return;
   }
   const groups = visibleSnapshots.reduce((result, snapshot) => {
@@ -4045,10 +4217,15 @@ function renderSnapshots() {
       <details class="snapshot-month-group" data-snapshot-month="${month}" ${isOpen ? "open" : ""}>
         <summary>
           <div class="snapshot-month-summary-main">
-            ${snapshotManageMode ? `<label class="snapshot-month-select" data-month-checkbox-wrapper>
-              <input data-select-snapshot-month="${month}" type="checkbox" ${monthChecked ? "checked" : ""} ${monthPartial ? 'data-indeterminate="true"' : ""} />
-              <span class="sr-only">选择 ${month} 整个月的快照</span>
-            </label>` : ""}
+            ${snapshotManageMode ? selectionControlHtml({
+              className: "snapshot-month-select",
+              dataName: "select-snapshot-month",
+              dataValue: month,
+              checked: monthChecked,
+              indeterminate: monthPartial,
+              label: `选择 ${month} 整个月的快照`,
+              wrapperAttribute: "data-month-checkbox-wrapper",
+            }) : ""}
             <b>${month}</b>
           </div>
           <span>${snapshots.length} 条</span>
@@ -4064,7 +4241,13 @@ function renderSnapshots() {
               const rowTag = snapshotManageMode ? "div" : "button";
               return `
                 <${rowTag} class="table-row snapshot-row" data-edit-snapshot="${snapshot.id}" ${snapshotManageMode ? "" : 'type="button"'}>
-                  ${snapshotManageMode ? `<label class="snapshot-select"><input data-select-snapshot="${snapshot.id}" type="checkbox" ${checked} /><span class="sr-only">选择 ${snapshot.date}</span></label>` : ""}
+                  ${snapshotManageMode ? selectionControlHtml({
+                    className: "snapshot-select",
+                    dataName: "select-snapshot",
+                    dataValue: snapshot.id,
+                    checked: Boolean(checked),
+                    label: `选择 ${snapshot.date}`,
+                  }) : ""}
                   <div>
                     <div class="snapshot-date-line"><b>${snapshot.date}</b>${snapshotTagsHtml(snapshot)}</div>
                     <span class="meta">${count} 个账户有余额${note ? ` · <span class="snapshot-note-preview" title="${escapeHtml(note)}">${escapeHtml(notePreview)}</span>` : ""}</span>
@@ -4081,9 +4264,7 @@ function renderSnapshots() {
     `;
     })
     .join("");
-  list.querySelectorAll('[data-indeterminate="true"]').forEach((input) => {
-    input.indeterminate = true;
-  });
+  syncIndeterminateCheckboxes(list);
 }
 
 function snapshotHistoryCalendarMonths(snapshots) {
@@ -4122,6 +4303,18 @@ function snapshotHistoryCalendarHtml(snapshots) {
       const latest = dateSnapshots[0];
       if (!latest) return `<span class="snapshot-calendar-day">${day}</span>`;
       const total = snapshotTotal(latest);
+      if (snapshotManageMode) {
+        const dateSelectedCount = dateSnapshots.filter((snapshot) => selectedSnapshotIds.has(snapshot.id)).length;
+        return selectionControlHtml({
+          className: "snapshot-calendar-day has-snapshot is-selectable",
+          dataName: "select-snapshot-date",
+          dataValue: date,
+          checked: dateSelectedCount === dateSnapshots.length,
+          indeterminate: dateSelectedCount > 0 && dateSelectedCount < dateSnapshots.length,
+          label: `选择 ${date} 的 ${dateSnapshots.length} 条快照，净值 ${formatMoney(total.net)}`,
+          contentHtml: `<span>${day}</span><small>${dateSnapshots.length}</small>`,
+        });
+      }
       return `<button class="snapshot-calendar-day has-snapshot" data-edit-snapshot="${escapeHtml(latest.id)}" type="button" title="${escapeHtml(`${date} · ${dateSnapshots.length} 条 · ${formatMoney(total.net)}`)}"><span>${day}</span><small>${dateSnapshots.length}</small></button>`;
     }),
   ].join("");
@@ -4197,9 +4390,7 @@ function renderTypeManager() {
   [...selectedTypeIds].forEach((typeId) => {
     if (!typeIds.has(typeId)) selectedTypeIds.delete(typeId);
   });
-  $("#toggleTypeManage").textContent = typeManageMode ? "完成" : "管理";
-  $("#toggleTypeManage").classList.toggle("primary-button", typeManageMode);
-  $("#toggleTypeManage").classList.toggle("secondary-button", !typeManageMode);
+  renderManageButton($("#toggleTypeManage"), typeManageMode);
   $("#deleteSelectedTypes").hidden = !typeManageMode;
   $("#deleteSelectedTypes").disabled = selectedTypeGroupIds.size + selectedTypeIds.size === 0;
   $("#typeManageHint").textContent = typeManageMode
@@ -4239,9 +4430,7 @@ function renderTagManager() {
   [...selectedTagNames].forEach((tag) => {
     if (!tags.includes(tag)) selectedTagNames.delete(tag);
   });
-  $("#toggleTagManage").textContent = tagManageMode ? "完成" : "管理";
-  $("#toggleTagManage").classList.toggle("primary-button", tagManageMode);
-  $("#toggleTagManage").classList.toggle("secondary-button", !tagManageMode);
+  renderManageButton($("#toggleTagManage"), tagManageMode);
   $("#deleteSelectedTags").hidden = !tagManageMode;
   $("#deleteSelectedTags").disabled = selectedTagNames.size === 0;
   $("#tagManageHint").textContent = tagManageMode ? `已选择 ${selectedTagNames.size} 个标签` : "管理快照标签";
@@ -4262,6 +4451,37 @@ function syncTagDraftFromInputs() {
 
 function emptyHtml() {
   return $("#emptyTemplate").innerHTML;
+}
+
+function renderManageButton(button, active, inactiveText = "管理") {
+  if (!button) return;
+  button.textContent = active ? "完成" : inactiveText;
+  button.classList.toggle("primary-button", active);
+  button.classList.toggle("secondary-button", !active);
+}
+
+function syncIndeterminateCheckboxes(container) {
+  container?.querySelectorAll('[data-indeterminate="true"]').forEach((input) => {
+    input.indeterminate = true;
+  });
+}
+
+function selectionControlHtml({
+  className = "",
+  dataName,
+  dataValue,
+  checked = false,
+  indeterminate = false,
+  label,
+  contentHtml = "",
+  wrapperAttribute = "",
+}) {
+  const stateAttributes = `${checked ? " checked" : ""}${indeterminate ? ' data-indeterminate="true"' : ""}`;
+  return `<label class="${escapeHtml(className)}" ${wrapperAttribute}>
+    <input type="checkbox" data-${dataName}="${escapeHtml(dataValue)}"${stateAttributes} />
+    ${contentHtml}
+    <span class="sr-only">${escapeHtml(label)}</span>
+  </label>`;
 }
 
 function escapeHtml(value) {
@@ -4333,6 +4553,7 @@ async function saveTextFile({ filename, content, type, description, accept }) {
 function backupPayload() {
   const portableSettings = { ...state.settings };
   delete portableSettings.theme;
+  delete portableSettings.liquidGlass;
   return JSON.stringify({
     ...state,
     settings: portableSettings,
@@ -4691,8 +4912,10 @@ function importJsonContent(content, normalizedData = null) {
   const imported = normalizedData || normalizeJsonImportData(JSON.parse(content)).data;
   validateJsonImportData(imported);
   const localTheme = normalizedTheme(state.settings.theme);
+  const localLiquidGlass = typeof state.settings.liquidGlass === "boolean" ? state.settings.liquidGlass : null;
   const importedSettings = { ...defaultState.settings, ...(imported.settings || {}) };
   importedSettings.theme = localTheme;
+  importedSettings.liquidGlass = localLiquidGlass;
   importedSettings.accountTypeGroups = normalizeTypeGroups(importedSettings.accountTypeGroups);
   importedSettings.healthConfig = normalizeHealthConfig(importedSettings.healthConfig, importedSettings.accountTypeGroups);
   importedSettings.healthDenominatorConfig = normalizeHealthDenominatorConfig(importedSettings.healthDenominatorConfig, importedSettings.accountTypeGroups);
@@ -5230,6 +5453,7 @@ let chartResizeTimer = null;
 
 function renderVisibleCharts() {
   if ($("#dashboardView")?.classList.contains("active")) renderTrend();
+  if (!$("#breakdownTrendSheet")?.hidden) renderBreakdownTrend();
   if ($("#analysisView")?.classList.contains("active")) {
     renderAnalysisTrend();
     renderAnalysisHealthTrend();
@@ -5259,6 +5483,37 @@ function bindEvents() {
     renderDashboard();
     renderAnalysis();
     renderSnapshots();
+  });
+  ["#groupBreakdown", "#typeBreakdown"].forEach((selector) => {
+    $(selector)?.addEventListener("click", (event) => {
+      const trigger = event.target.closest("[data-breakdown-trend-mode]");
+      if (!trigger) return;
+      openBreakdownTrend(trigger.dataset.breakdownTrendMode, trigger.dataset.breakdownTrendKey);
+    });
+  });
+  $("#accountTable")?.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-account-trend-id]");
+    if (!trigger || overviewAccountSortMode || event.target.closest("button")) return;
+    openBreakdownTrend("account", trigger.dataset.accountTrendId);
+  });
+  $("#closeBreakdownTrend")?.addEventListener("click", closeBreakdownTrendSheet);
+  $("#breakdownTrendSheet")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeBreakdownTrendSheet();
+  });
+  $$('[data-breakdown-trend-metric]').forEach((input) => {
+    input.addEventListener("change", () => {
+      const metric = input.dataset.breakdownTrendMetric;
+      if (input.checked) visibleBreakdownTrendMetrics.add(metric);
+      else if (visibleBreakdownTrendMetrics.size > 1) visibleBreakdownTrendMetrics.delete(metric);
+      else input.checked = true;
+      renderBreakdownTrend();
+    });
+  });
+  $$('[data-breakdown-trend-period]').forEach((button) => {
+    button.addEventListener("click", () => {
+      breakdownTrendPeriod = button.dataset.breakdownTrendPeriod || "month";
+      renderBreakdownTrend();
+    });
   });
   $$("[data-trend-line]").forEach((input) => {
     input.addEventListener("change", () => {
@@ -5549,8 +5804,11 @@ function bindEvents() {
   });
   $("#selectFilteredSnapshots").addEventListener("click", () => {
     const filtered = filteredSnapshotsSorted();
-    if (selectedSnapshotIds.size) selectedSnapshotIds.clear();
-    else filtered.forEach((snapshot) => selectedSnapshotIds.add(snapshot.id));
+    const allFilteredSelected = filtered.length > 0 && filtered.every((snapshot) => selectedSnapshotIds.has(snapshot.id));
+    filtered.forEach((snapshot) => {
+      if (allFilteredSelected) selectedSnapshotIds.delete(snapshot.id);
+      else selectedSnapshotIds.add(snapshot.id);
+    });
     renderSnapshots();
   });
   $("#snapshotList").addEventListener("change", (event) => {
@@ -5736,6 +5994,7 @@ function bindEvents() {
     }
     const settingsSheet = $(".settings-sheet-backdrop:not([hidden])");
     if (settingsSheet) await closeSettingsSheet(settingsSheet);
+    else if (!$("#breakdownTrendSheet").hidden) closeBreakdownTrendSheet();
     else if (!$("#historicalReportSheet").hidden) closeHistoricalReportSheet();
     else if (!$("#healthDetailSheet").hidden) closeHealthDetailSheet();
     else if (!$("#snapshotSheet").hidden) closeSnapshotSheet();
@@ -5744,6 +6003,12 @@ function bindEvents() {
   });
   document.addEventListener("keydown", (event) => {
     if (!["Enter", " "].includes(event.key) || isGroupHeadingAction(event.target)) return;
+    const accountTrendTrigger = event.target.closest("[data-account-trend-id]");
+    if (accountTrendTrigger && !overviewAccountSortMode) {
+      event.preventDefault();
+      openBreakdownTrend("account", accountTrendTrigger.dataset.accountTrendId);
+      return;
+    }
     const overviewGroupToggle = event.target.closest("[data-toggle-account-group]");
     const accountGroupToggle = event.target.closest("[data-toggle-account-list-group]");
     if (!overviewGroupToggle && !accountGroupToggle) return;
@@ -6047,6 +6312,14 @@ function bindEvents() {
     const monthSnapshots = state.snapshots.filter((snapshot) => snapshot.date.startsWith(`${month}-`));
     if (monthCheckbox.checked) monthSnapshots.forEach((snapshot) => selectedSnapshotIds.add(snapshot.id));
     else monthSnapshots.forEach((snapshot) => selectedSnapshotIds.delete(snapshot.id));
+    renderSnapshots();
+  });
+  $("#snapshotList").addEventListener("change", (event) => {
+    const dateCheckbox = event.target.closest("[data-select-snapshot-date]");
+    if (!dateCheckbox) return;
+    const dateSnapshots = state.snapshots.filter((snapshot) => snapshot.date === dateCheckbox.dataset.selectSnapshotDate);
+    if (dateCheckbox.checked) dateSnapshots.forEach((snapshot) => selectedSnapshotIds.add(snapshot.id));
+    else dateSnapshots.forEach((snapshot) => selectedSnapshotIds.delete(snapshot.id));
     renderSnapshots();
   });
   $("#snapshotList").addEventListener("click", (event) => {
@@ -6614,6 +6887,11 @@ function bindEvents() {
       applyTheme();
     });
   });
+  $("#liquidGlassToggle")?.addEventListener("change", (event) => {
+    state.settings.liquidGlass = event.currentTarget.checked;
+    saveState();
+    applyLiquidGlassPreference();
+  });
 
   $("#importJsonText").addEventListener("click", async () => {
     const content = $("#backupText").value.trim();
@@ -6989,7 +7267,7 @@ function reorderGroup(groupName, targetName, side = "before") {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js?v=140&ui=13").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=141&ui=8").catch(() => {});
   }
 }
 

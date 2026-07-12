@@ -266,6 +266,33 @@
   color: var(--muted);
 }
 
+.appearance-effect-options {
+  margin-top: 14px;
+}
+
+.appearance-glass-option {
+  align-items: center;
+  min-height: 64px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-tint);
+}
+
+.appearance-glass-option span {
+  display: grid;
+  gap: 3px;
+}
+
+.appearance-glass-option b,
+.appearance-glass-option small {
+  display: block;
+}
+
+.appearance-glass-option small {
+  color: var(--muted);
+}
+
 /* v0.2.1 semantic dark theme */
 html[data-theme="dark"] {
   --bg: #07111f;
@@ -2249,6 +2276,12 @@ textarea {
   font-weight: 500;
 }
 
+.account-group-heading .drag-title > b,
+.account-group-heading .drag-title > div > b {
+  font-size: var(--text-section-title);
+  line-height: 1.28;
+}
+
 .account-detail-row {
   border: 0;
   border-top: 1px solid var(--line);
@@ -2258,6 +2291,11 @@ textarea {
 
 .account-detail-row b {
   font-size: 15px;
+}
+
+.account-detail-row .drag-title b,
+.account-management-group .account-card > .drag-title b {
+  font-size: var(--text-item-title);
 }
 
 .account-detail-row > div:last-child b {
@@ -2402,6 +2440,119 @@ textarea {
   height: 100%;
   border-radius: inherit;
   background: var(--blue);
+}
+
+.breakdown-bar-line {
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  cursor: pointer;
+}
+
+.breakdown-bar-line:focus-visible {
+  border-radius: 8px;
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 4px;
+}
+
+.breakdown-trend-block {
+  margin-top: 0;
+}
+
+.breakdown-trend-metrics .trend-toggle.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.breakdown-account-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.breakdown-account-summary[hidden] {
+  display: none;
+}
+
+.breakdown-account-summary > div {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.breakdown-account-summary span,
+.breakdown-account-summary b {
+  display: block;
+}
+
+.breakdown-account-summary span {
+  margin-bottom: 4px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.breakdown-account-summary b {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.breakdown-account-summary > p {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.account-trend-trigger[role="button"] {
+  cursor: pointer;
+}
+
+.account-trend-trigger:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 3px solid var(--focus-ring);
+  outline-offset: -3px;
+}
+
+.breakdown-trend-controls {
+  align-items: flex-start;
+}
+
+#breakdownTrendChart {
+  min-height: 340px;
+}
+
+@media (max-width: 600px) {
+  .breakdown-account-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .breakdown-trend-controls {
+    align-items: stretch;
+  }
+
+  .breakdown-trend-controls.analysis-trend-subheading .trend-control-stack {
+    width: 100%;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+  }
+
+  #breakdownTrendChart {
+    min-height: 280px;
+  }
 }
 
 .health-grid {
@@ -3258,6 +3409,43 @@ textarea {
   border-color: #2563eb;
   outline: none;
   box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.snapshot-calendar-day.is-selectable {
+  position: relative;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+  gap: 1px;
+  padding: 4px 20px 4px 4px;
+}
+
+.snapshot-calendar-day.is-selectable input[type="checkbox"] {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+}
+
+.snapshot-calendar-day.is-selectable:has(input:checked) {
+  border-color: var(--blue);
+  background: var(--surface-selected);
+  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16);
+}
+
+html[data-theme="dark"] .snapshot-calendar-day {
+  border-color: var(--line-soft);
+  background: var(--panel-tint);
+  color: var(--muted);
+}
+
+html[data-theme="dark"] .snapshot-calendar-day.has-snapshot {
+  border-color: rgba(100, 165, 255, 0.38);
+  background: rgba(47, 118, 224, 0.2);
+  color: #9dc6ff;
+}
+
+html[data-theme="dark"] .snapshot-calendar-day.is-selectable:has(input:checked) {
+  border-color: var(--blue);
+  background: rgba(47, 118, 224, 0.3);
 }
 
 .gain-analysis {
@@ -5408,7 +5596,7 @@ html.is-touch-shell .analysis-view .health-card:hover {
   grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 14px;
   min-height: 62px;
-  padding-left: 18px;
+  padding-left: 36px;
   border: 0;
   border-top: 1px solid var(--line-soft);
   border-radius: 0;
@@ -6237,7 +6425,7 @@ textarea:focus {
   }
 
   .trend-line-toggles {
-    flex: 1 1 auto;
+    flex: 0 1 auto;
     min-width: 0;
   }
 
@@ -6246,9 +6434,9 @@ textarea:focus {
   }
 
   .trend-toggle {
-    flex: 1 1 0;
+    flex: 0 0 auto;
     justify-content: center;
-    min-width: 0;
+    min-width: max-content;
     min-height: 26px;
     padding: 1px 5px;
     gap: 3px;
@@ -6732,7 +6920,7 @@ textarea:focus {
   .tabs {
     position: fixed;
     right: max(14px, env(safe-area-inset-right));
-    bottom: max(14px, env(safe-area-inset-bottom));
+    bottom: calc(max(16px, env(safe-area-inset-bottom, 0px)) + 10px);
     left: max(14px, env(safe-area-inset-left));
     z-index: 50;
     display: grid;
@@ -6903,18 +7091,18 @@ html.is-touch-shell .sheet-heading-actions {
   }
 
   main {
-    padding-bottom: 112px;
+    padding-bottom: calc(122px + env(safe-area-inset-bottom, 0px));
   }
 }
 
 @media (max-width: 860px) {
   .app-header {
     align-items: center;
-    padding: 18px 16px 6px;
+    padding: calc(18px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 6px max(16px, env(safe-area-inset-left, 0px));
   }
 
   main {
-    padding: 14px 16px 112px;
+    padding: 14px max(16px, env(safe-area-inset-right, 0px)) calc(122px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
   }
 
   .dashboard-hero-grid,
@@ -7446,6 +7634,13 @@ html[data-theme="dark"] :is(.gain-summary-card, .contribution-column) strong {
   }
 }
 
+/* Keep primary mobile destinations at the platform-standard minimum touch size. */
+@media (max-width: 1180px) {
+  .tabs .tab {
+    min-height: 44px;
+  }
+}
+
 /* Mobile navigation dark-theme correction */
 @media (max-width: 1180px) {
   html[data-theme="dark"] .tabs {
@@ -7485,6 +7680,70 @@ html[data-theme="dark"] :is(.gain-summary-card, .contribution-column) strong {
 
   html[data-theme="dark"].is-mobile-shell .mobile-snapshot-tab span {
     color: var(--muted);
+  }
+}
+
+/* Web/PWA approximation of Liquid Glass; native glassEffect APIs aren't exposed to web content. */
+@media (max-width: 1180px) {
+  html.has-liquid-glass-nav .tabs {
+    border-color: rgba(255, 255, 255, 0.56);
+    background:
+      linear-gradient(145deg, rgba(255, 255, 255, 0.46), rgba(255, 255, 255, 0.14) 48%, rgba(199, 218, 255, 0.24)),
+      rgba(239, 246, 255, 0.42);
+    box-shadow:
+      0 18px 44px rgba(24, 46, 88, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.8),
+      inset 0 -1px 0 rgba(114, 146, 199, 0.2);
+  }
+
+  html.has-liquid-glass-nav .tabs .tab {
+    border-color: transparent;
+    background: transparent;
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+  }
+
+  html.has-liquid-glass-nav .tabs .tab.active {
+    border-color: rgba(255, 255, 255, 0.64);
+    background: linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(157, 191, 255, 0.28));
+    color: var(--blue-dark);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.74),
+      0 5px 14px rgba(42, 88, 170, 0.14);
+  }
+
+  html.has-liquid-glass-nav[data-theme="dark"] .tabs {
+    border-color: rgba(185, 211, 255, 0.26);
+    background:
+      linear-gradient(145deg, rgba(128, 166, 222, 0.2), rgba(20, 37, 61, 0.3) 52%, rgba(89, 127, 181, 0.14)),
+      rgba(7, 17, 31, 0.52);
+    box-shadow:
+      0 20px 48px rgba(0, 0, 0, 0.46),
+      inset 0 1px 0 rgba(225, 238, 255, 0.22),
+      inset 0 -1px 0 rgba(1, 8, 18, 0.3);
+  }
+
+  html.has-liquid-glass-nav[data-theme="dark"] .tabs .tab.active {
+    border-color: rgba(191, 216, 255, 0.3);
+    background: linear-gradient(145deg, rgba(113, 158, 225, 0.3), rgba(47, 99, 223, 0.2));
+    color: #e6f0ff;
+  }
+}
+
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  @media (max-width: 1180px) {
+    html.has-liquid-glass-nav .tabs {
+      -webkit-backdrop-filter: blur(28px) saturate(185%) contrast(106%);
+      backdrop-filter: blur(28px) saturate(185%) contrast(106%);
+    }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) and (max-width: 1180px) {
+  html.has-liquid-glass-nav .tabs,
+  html.has-liquid-glass-nav[data-theme="dark"] .tabs {
+    background: var(--panel);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
   }
 }
 

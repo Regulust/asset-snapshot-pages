@@ -2,7 +2,7 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#2f63df" />
     <meta name="description" content="本地资产余额快照记账 PWA" />
     <link rel="manifest" href="./manifest.webmanifest" />
@@ -20,7 +20,7 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=140&ui=13" />
+    <link rel="stylesheet" href="./styles.css?v=141&ui=8" />
     <title>资产快照本</title>
   </head>
   <body>
@@ -49,7 +49,7 @@
           <span class="brand-mark" aria-hidden="true">资</span>
           <div>
             <strong>资产快照本</strong>
-            <span>v0.2.1 / res v140</span>
+            <span>v0.2.1 / res v141</span>
           </div>
         </div>
 
@@ -74,7 +74,7 @@
             <span class="brand-mark" aria-hidden="true">资</span>
             <div>
               <strong>资产快照本</strong>
-              <span>v0.2.1 / res v140</span>
+              <span>v0.2.1 / res v141</span>
             </div>
           </div>
           <div class="page-title">
@@ -189,6 +189,42 @@
               </aside>
             </div>
       </section>
+
+      <div class="sheet-backdrop" id="breakdownTrendSheet" hidden>
+        <section class="account-sheet breakdown-trend-sheet" role="dialog" aria-modal="true" aria-labelledby="breakdownTrendTitle">
+          <div class="sheet-heading">
+            <div>
+              <h2 id="breakdownTrendTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-trend"></use></svg>占比趋势</h2>
+              <span id="breakdownTrendSubtitle">按历史快照查看余额与成本</span>
+            </div>
+            <button class="sheet-close" id="closeBreakdownTrend" type="button" aria-label="关闭">×</button>
+          </div>
+          <div class="breakdown-account-summary" id="breakdownAccountSummary" hidden></div>
+          <div class="analysis-trend-block breakdown-trend-block">
+            <div class="analysis-trend-subheading breakdown-trend-controls">
+              <div>
+                <b id="breakdownTrendHeading">余额趋势</b>
+                <span id="breakdownTrendScopeLabel">所选范围</span>
+              </div>
+              <div class="trend-control-stack">
+                <div class="trend-line-toggles breakdown-trend-metrics" role="group" aria-label="趋势显示指标">
+                  <label class="trend-toggle"><input data-breakdown-trend-metric="balance" type="checkbox" checked />余额</label>
+                  <label class="trend-toggle"><input data-breakdown-trend-metric="cost" type="checkbox" checked />成本</label>
+                </div>
+                <div class="trend-period-tabs analysis-period-tabs" role="group" aria-label="占比趋势周期">
+                  <button class="trend-period" data-breakdown-trend-period="day" type="button">日</button>
+                  <button class="trend-period active" data-breakdown-trend-period="month" type="button">月</button>
+                  <button class="trend-period" data-breakdown-trend-period="quarter" type="button">季</button>
+                  <button class="trend-period" data-breakdown-trend-period="year" type="button">年</button>
+                </div>
+              </div>
+            </div>
+            <div class="analysis-trend-summary" id="breakdownTrendSummary"></div>
+            <div class="trend-legend" id="breakdownTrendLegend"></div>
+            <svg id="breakdownTrendChart" class="line-chart analysis-trend-chart" role="img" aria-label="所选范围趋势图"></svg>
+          </div>
+        </section>
+      </div>
 
       <section class="view accounts-view" id="accountsView">
         <div class="accounts-layout">
@@ -784,6 +820,12 @@
               <label><input type="radio" name="themeMode" value="light" /><span><b>浅色</b><small>始终使用浅色界面</small></span></label>
               <label><input type="radio" name="themeMode" value="dark" /><span><b>深色</b><small>使用深蓝黑背景和深色面板</small></span></label>
             </div>
+            <div class="appearance-effect-options">
+              <label class="check-row appearance-glass-option">
+                <input id="liquidGlassToggle" type="checkbox" />
+                <span><b>液态玻璃导航栏</b><small id="liquidGlassSupportText">检测设备支持情况</small></span>
+              </label>
+            </div>
             <p class="hint">外观设置仅保存在本机，不随完整 JSON 备份迁移。</p>
           </section>
         </div>
@@ -890,6 +932,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=140&ui=13" defer></script>
+    <script src="./app.js?v=141&ui=8" defer></script>
   </body>
 </html>
