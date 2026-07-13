@@ -1,6 +1,17 @@
 const STORAGE_KEY = "asset-snapshot-book-v1";
-const APP_VERSION = "v0.2.1 / res v141";
+const RECOVERY_STORAGE_KEY = `${STORAGE_KEY}-recovery`;
+const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}-corrupt`;
+const LAYOUT_STORAGE_KEY = `${STORAGE_KEY}-local-layout`;
+const WELCOME_STORAGE_KEY = `${STORAGE_KEY}-welcome-v142-ui8`;
+const APP_VERSION = "v0.2.1 / res v142";
 const DATA_SCHEMA_VERSION = 3;
+const DASHBOARD_MODULES = [
+  { id: "hero", label: "净值区域", description: "最新净值、资产与负债概览" },
+  { id: "trend", label: "资产趋势", description: "资产、负债与净值折线图" },
+  { id: "breakdowns", label: "占比模块组", description: "分组占比与账户类型占比" },
+  { id: "accounts", label: "账户明细", description: "按分组查看全部账户" },
+];
+const DEFAULT_DASHBOARD_MODULE_ORDER = DASHBOARD_MODULES.map((module) => module.id);
 
 const currencies = [
   { code: "CNY", name: "人民币", symbol: "¥", rate: 1 },
@@ -96,6 +107,7 @@ const HEALTH_CARD_META = {
 const DEFAULT_HEALTH_CONFIG = defaultHealthConfig(DEFAULT_ACCOUNT_TYPE_GROUPS);
 
 const defaultState = {
+  dataSchemaVersion: DATA_SCHEMA_VERSION,
   settings: {
     baseCurrency: "CNY",
     enabledCurrencies: currencies.map((item) => item.code),
@@ -118,7 +130,10 @@ const defaultState = {
   snapshots: [],
 };
 
+let startupRecoveryNotice = "";
+let storageWriteWarningShown = false;
 let state = loadState();
+let dashboardModuleOrder = loadDashboardModuleOrder();
 let editingAccountId = null;
 let editingAccountBalanceInitial = "";
 let editingAccountCostInitial = "";
@@ -393,6 +408,32 @@ function alertDialog(message, options = {}) {
   });
 }
 
+function featureIntroMessage() {
+  return `资产快照本是一款用于手动记录账户余额、保存历史快照，并查看净值、资产负债、成本和趋势变化的本地网页工具。
+
+重要：你的数据只保存在当前设备的浏览器中，不会上传到云端，也没有账户登录或自动同步。
+
+请特别注意：
+• 清理浏览器网站数据、卸载应用或更换设备，可能导致本地数据丢失。
+• 请定期前往“设置 → 数据管理”导出完整 JSON 备份。
+• 建议把备份文件妥善保存到其它位置，并在重要录入后及时更新备份。
+
+你可以随时在“设置 → 功能介绍”中再次查看这些说明。`;
+}
+
+async function showFirstUseIntro() {
+  if (localStorage.getItem(WELCOME_STORAGE_KEY) === "seen") return;
+  await alertDialog(featureIntroMessage(), {
+    title: "欢迎使用资产快照本",
+    confirmText: "开始使用",
+  });
+  try {
+    localStorage.setItem(WELCOME_STORAGE_KEY, "seen");
+  } catch (error) {
+    console.warn("First-use introduction state could not be saved.", error);
+  }
+}
+
 function textConfirmDialog({ title, message, requiredText, confirmText = "确认", cancelText = "取消" } = {}) {
   const backdrop = $("#appDialog");
   const dialog = backdrop?.querySelector(".app-dialog");
@@ -443,55 +484,161 @@ function textConfirmDialog({ title, message, requiredText, confirmText = "确认
 }
 
 function loadState() {
+  const primaryRaw = localStorage.getItem(STORAGE_KEY);
+  if (!primaryRaw) return structuredClone(defaultState);
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return structuredClone(defaultState);
-    const parsed = JSON.parse(raw);
-    const settings = { ...defaultState.settings, ...(parsed.settings || {}) };
-    settings.theme = normalizedTheme(settings.theme);
-    settings.liquidGlass = typeof settings.liquidGlass === "boolean" ? settings.liquidGlass : null;
-    settings.customCurrencies = Array.isArray(settings.customCurrencies) ? settings.customCurrencies : [];
-    settings.deletedCurrencyCodes = Array.isArray(settings.deletedCurrencyCodes) ? settings.deletedCurrencyCodes : [];
-    const usedCurrencyCodes = (parsed.accounts || []).map((account) => account.currency);
-    settings.deletedCurrencyCodes = settings.deletedCurrencyCodes.filter((code) => !usedCurrencyCodes.includes(code) && code !== settings.baseCurrency);
-    settings.enabledCurrencies = [...new Set([
-      settings.baseCurrency,
-      ...(settings.enabledCurrencies || currencies.map((item) => item.code)),
-      ...usedCurrencyCodes,
-    ])].filter((code) => [...currencies, ...settings.customCurrencies].some((item) => item.code === code) && !settings.deletedCurrencyCodes.includes(code));
-    settings.accountTypeGroups = normalizeTypeGroups(settings.accountTypeGroups);
-    settings.healthConfig = normalizeHealthConfig(settings.healthConfig, settings.accountTypeGroups);
-    settings.healthDenominatorConfig = normalizeHealthDenominatorConfig(settings.healthDenominatorConfig, settings.accountTypeGroups);
-    settings.healthCustomCards = normalizeHealthCustomCards(settings.healthCustomCards, settings.accountTypeGroups);
-    settings.snapshotTags = normalizeSnapshotTagSettings(settings.snapshotTags);
-    const needsArchiveMigration = !parsed.settings?.archiveMergeVersion;
-    const accounts = (parsed.accounts || []).map((account) => normalizeAccount(account, settings.accountTypeGroups, needsArchiveMigration));
-    settings.archiveMergeVersion = 1;
-    const snapshots = (parsed.snapshots || []).map(normalizeSnapshot);
-    settings.snapshotTags = normalizeSnapshotTagSettings(settings.snapshotTags, snapshots);
-    const needsSignMigration = !parsed.settings?.balanceSignVersion;
-    if (needsSignMigration) {
-      const liabilityIds = new Set(accounts.filter((account) => accountKind(account.type, settings.accountTypeGroups) === "liability").map((account) => account.id));
-      snapshots.forEach((snapshot) => {
-        liabilityIds.forEach((accountId) => {
-          const value = Number(snapshot.balances?.[accountId]);
-          if (value > 0) snapshot.balances[accountId] = -value;
-        });
-      });
-      settings.balanceSignVersion = 2;
+    const normalized = normalizeStoredState(JSON.parse(primaryRaw));
+    try {
+      if (normalized.migrated) localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized.state));
+      if (!localStorage.getItem(RECOVERY_STORAGE_KEY)) localStorage.setItem(RECOVERY_STORAGE_KEY, JSON.stringify(normalized.state));
+    } catch (storageError) {
+      console.warn("Loaded local data, but could not refresh migration/recovery storage.", storageError);
     }
-    const loaded = {
+    return normalized.state;
+  } catch (primaryError) {
+    const recoveryRaw = localStorage.getItem(RECOVERY_STORAGE_KEY);
+    if (recoveryRaw) {
+      try {
+        const normalized = normalizeStoredState(JSON.parse(recoveryRaw));
+        try {
+          localStorage.setItem(CORRUPT_STORAGE_KEY, primaryRaw);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized.state));
+        } catch {
+          // The recovered state remains usable for this session even if storage is full.
+        }
+        startupRecoveryNotice = "检测到本地数据异常，已自动恢复到最近一次可用状态；原始异常数据已尽量保留供排查。";
+        console.warn("Primary local data was invalid; recovered the last known good state.", primaryError);
+        return normalized.state;
+      } catch (recoveryError) {
+        console.error("Local data and recovery copy are both invalid.", primaryError, recoveryError);
+      }
+    }
+    try {
+      localStorage.setItem(CORRUPT_STORAGE_KEY, primaryRaw);
+    } catch {
+      // Keep startup available even when storage is full or unavailable.
+    }
+    startupRecoveryNotice = "检测到本地数据异常，且没有可用恢复副本。当前以空白状态启动；请不要继续录入，优先从 JSON 备份恢复。";
+    return structuredClone(defaultState);
+  }
+}
+
+function normalizeDashboardModuleOrder(order) {
+  const known = new Set(DEFAULT_DASHBOARD_MODULE_ORDER);
+  const saved = Array.isArray(order) ? order.filter((id, index) => known.has(id) && order.indexOf(id) === index) : [];
+  return [...saved, ...DEFAULT_DASHBOARD_MODULE_ORDER.filter((id) => !saved.includes(id))];
+}
+
+function loadDashboardModuleOrder() {
+  try {
+    const stored = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) || "null");
+    return normalizeDashboardModuleOrder(stored?.dashboard?.mobileOrder);
+  } catch (error) {
+    console.warn("Local page layout preference could not be loaded.", error);
+    return [...DEFAULT_DASHBOARD_MODULE_ORDER];
+  }
+}
+
+function saveDashboardModuleOrder() {
+  dashboardModuleOrder = normalizeDashboardModuleOrder(dashboardModuleOrder);
+  try {
+    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify({ dashboard: { mobileOrder: dashboardModuleOrder } }));
+    return true;
+  } catch (error) {
+    console.warn("Local page layout preference could not be saved.", error);
+    return false;
+  }
+}
+
+function applyDashboardModuleOrder() {
+  const view = $("#dashboardView");
+  if (!view) return;
+  normalizeDashboardModuleOrder(dashboardModuleOrder).forEach((id, index) => {
+    view.style.setProperty(`--dashboard-order-${id}`, String(index + 1));
+  });
+}
+
+function renderDashboardLayoutSettings() {
+  const list = $("#dashboardLayoutList");
+  if (!list) return;
+  dashboardModuleOrder = normalizeDashboardModuleOrder(dashboardModuleOrder);
+  list.innerHTML = dashboardModuleOrder.map((id, index) => {
+    const module = DASHBOARD_MODULES.find((item) => item.id === id);
+    return `
+      <article class="module-layout-item" data-layout-module="${escapeHtml(id)}">
+        <span class="module-layout-index" aria-hidden="true">${index + 1}</span>
+        <span class="module-layout-copy"><b>${escapeHtml(module.label)}</b><small>${escapeHtml(module.description)}</small></span>
+        <span class="module-layout-controls">
+          <button class="secondary-button small" data-move-layout="up" type="button" aria-label="上移${escapeHtml(module.label)}" ${index === 0 ? "disabled" : ""}>上移</button>
+          <button class="secondary-button small" data-move-layout="down" type="button" aria-label="下移${escapeHtml(module.label)}" ${index === dashboardModuleOrder.length - 1 ? "disabled" : ""}>下移</button>
+        </span>
+      </article>
+    `;
+  }).join("");
+  $("#resetDashboardLayout").disabled = dashboardModuleOrder.every((id, index) => id === DEFAULT_DASHBOARD_MODULE_ORDER[index]);
+}
+
+function moveDashboardModule(moduleId, direction) {
+  const index = dashboardModuleOrder.indexOf(moduleId);
+  const targetIndex = index + (direction === "up" ? -1 : 1);
+  if (index < 0 || targetIndex < 0 || targetIndex >= dashboardModuleOrder.length) return;
+  [dashboardModuleOrder[index], dashboardModuleOrder[targetIndex]] = [dashboardModuleOrder[targetIndex], dashboardModuleOrder[index]];
+  saveDashboardModuleOrder();
+  applyDashboardModuleOrder();
+  renderDashboardLayoutSettings();
+  scheduleVisibleChartRender();
+}
+
+function normalizeStoredState(parsed) {
+  if (!isPlainObject(parsed)) throw new Error("Stored state is not an object.");
+  if (parsed.accounts !== undefined && !Array.isArray(parsed.accounts)) throw new Error("Stored accounts are invalid.");
+  if (parsed.snapshots !== undefined && !Array.isArray(parsed.snapshots)) throw new Error("Stored snapshots are invalid.");
+  const sourceSchemaVersion = Number(parsed.dataSchemaVersion || 1);
+  const settings = { ...defaultState.settings, ...(parsed.settings || {}) };
+  delete settings.moduleLayout;
+  settings.theme = normalizedTheme(settings.theme);
+  settings.liquidGlass = typeof settings.liquidGlass === "boolean" ? settings.liquidGlass : null;
+  settings.customCurrencies = Array.isArray(settings.customCurrencies) ? settings.customCurrencies : [];
+  settings.deletedCurrencyCodes = Array.isArray(settings.deletedCurrencyCodes) ? settings.deletedCurrencyCodes : [];
+  const usedCurrencyCodes = (parsed.accounts || []).map((account) => account.currency);
+  settings.deletedCurrencyCodes = settings.deletedCurrencyCodes.filter((code) => !usedCurrencyCodes.includes(code) && code !== settings.baseCurrency);
+  settings.enabledCurrencies = [...new Set([
+    settings.baseCurrency,
+    ...(settings.enabledCurrencies || currencies.map((item) => item.code)),
+    ...usedCurrencyCodes,
+  ])].filter((code) => [...currencies, ...settings.customCurrencies].some((item) => item.code === code) && !settings.deletedCurrencyCodes.includes(code));
+  settings.accountTypeGroups = normalizeTypeGroups(settings.accountTypeGroups);
+  settings.healthConfig = normalizeHealthConfig(settings.healthConfig, settings.accountTypeGroups);
+  settings.healthDenominatorConfig = normalizeHealthDenominatorConfig(settings.healthDenominatorConfig, settings.accountTypeGroups);
+  settings.healthCustomCards = normalizeHealthCustomCards(settings.healthCustomCards, settings.accountTypeGroups);
+  settings.snapshotTags = normalizeSnapshotTagSettings(settings.snapshotTags);
+  const needsArchiveMigration = !parsed.settings?.archiveMergeVersion;
+  const accounts = (parsed.accounts || []).map((account) => normalizeAccount(account, settings.accountTypeGroups, needsArchiveMigration));
+  settings.archiveMergeVersion = 1;
+  const snapshots = (parsed.snapshots || []).map(normalizeSnapshot);
+  settings.snapshotTags = normalizeSnapshotTagSettings(settings.snapshotTags, snapshots);
+  const needsSignMigration = !parsed.settings?.balanceSignVersion;
+  if (needsSignMigration) {
+    const liabilityIds = new Set(accounts.filter((account) => accountKind(account.type, settings.accountTypeGroups) === "liability").map((account) => account.id));
+    snapshots.forEach((snapshot) => {
+      liabilityIds.forEach((accountId) => {
+        const value = Number(snapshot.balances?.[accountId]);
+        if (value > 0) snapshot.balances[accountId] = -value;
+      });
+    });
+    settings.balanceSignVersion = 2;
+  }
+  return {
+    state: {
       ...structuredClone(defaultState),
       ...parsed,
+      dataSchemaVersion: DATA_SCHEMA_VERSION,
       settings,
       accounts,
       snapshots,
-    };
-    if (needsSignMigration || needsArchiveMigration) localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
-    return loaded;
-  } catch {
-    return structuredClone(defaultState);
-  }
+    },
+    migrated: sourceSchemaVersion < DATA_SCHEMA_VERSION || needsSignMigration || needsArchiveMigration,
+  };
 }
 
 function normalizeTypeGroups(groups) {
@@ -819,7 +966,42 @@ function isGroupHeadingAction(target) {
 
 function saveState() {
   syncGroupOrder();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  state.dataSchemaVersion = DATA_SCHEMA_VERSION;
+  const serialized = JSON.stringify(state);
+  try {
+    const previous = localStorage.getItem(STORAGE_KEY);
+    let recoverySeed = "";
+    if (previous) {
+      try {
+        const parsedPrevious = JSON.parse(previous);
+        if (isPlainObject(parsedPrevious) && Array.isArray(parsedPrevious.accounts) && Array.isArray(parsedPrevious.snapshots)) recoverySeed = previous;
+      } catch {
+        // The primary write can still repair a bad current value; its original is quarantined at startup when possible.
+      }
+    }
+    localStorage.setItem(STORAGE_KEY, serialized);
+    try {
+      if (recoverySeed) localStorage.setItem(RECOVERY_STORAGE_KEY, recoverySeed);
+      else if (!localStorage.getItem(RECOVERY_STORAGE_KEY)) localStorage.setItem(RECOVERY_STORAGE_KEY, serialized);
+    } catch (recoveryError) {
+      console.warn("Saved primary local data, but could not refresh the recovery copy.", recoveryError);
+    }
+    return true;
+  } catch (error) {
+    console.error("Unable to persist local data.", error);
+    notifyStorageWriteFailure();
+    return false;
+  }
+}
+
+function notifyStorageWriteFailure() {
+  if (storageWriteWarningShown) return;
+  storageWriteWarningShown = true;
+  const message = "本地存储写入失败，本次修改可能无法在刷新后保留。请立即导出完整 JSON 备份，并检查浏览器可用空间或隐私模式设置。";
+  window.setTimeout(() => {
+    setBackupStatus(message, "error");
+    alertDialog(message, { title: "数据保存失败", variant: "danger" });
+  }, 0);
 }
 
 function resetInteractionState() {
@@ -901,7 +1083,10 @@ async function deleteAllData() {
     return;
   }
   localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(LAYOUT_STORAGE_KEY);
+  localStorage.removeItem(WELCOME_STORAGE_KEY);
   state = structuredClone(defaultState);
+  dashboardModuleOrder = [...DEFAULT_DASHBOARD_MODULE_ORDER];
   applyTheme();
   resetInteractionState();
   $("#backupText").value = "";
@@ -3065,12 +3250,14 @@ function analysisTrendMetricConfig(metric = analysisTrendMetric) {
 }
 
 function analysisTrendValueHtml(value, metric = analysisTrendMetric) {
+  if (optionalNumber(value) === null) return "未记录";
   const config = analysisTrendMetricConfig(metric);
   if (config.valueType === "percent") return `${(Number(value || 0) * 100).toFixed(1)}%`;
   return config.valueType === "signedMoney" ? signedMoneyHtml(value) : moneySpan(formatMoney(value));
 }
 
 function analysisTrendChangeHtml(value, metric = analysisTrendMetric) {
+  if (optionalNumber(value) === null) return '<span class="meta">未记录</span>';
   const config = analysisTrendMetricConfig(metric);
   if (config.valueType === "percent") {
     const number = Number(value || 0) * 100;
@@ -3080,54 +3267,63 @@ function analysisTrendChangeHtml(value, metric = analysisTrendMetric) {
 }
 
 function analysisTrendPlainValue(value, metric = analysisTrendMetric) {
+  if (optionalNumber(value) === null) return "未记录";
   const config = analysisTrendMetricConfig(metric);
   if (config.valueType === "percent") return `${(Number(value || 0) * 100).toFixed(1)}%`;
   return state.settings.privacy ? privateMoneyPlaceholder() : formatMoney(value);
 }
 
 function analysisTrendData() {
+  const trackedIds = costTrackedAccountIds();
+  const accounts = state.accounts.filter((account) =>
+    trackedIds.has(account.id) &&
+    account.includeInNetWorth !== false &&
+    !account.archived &&
+    accountKind(account.type) === "asset"
+  );
   return periodSnapshotPoints(analysisTrendPeriod, periodConfig(analysisTrendPeriod).limit)
     .map((point) => {
-      const total = snapshotTotal(point.snapshot);
-      const summary = gainAnalysisSummary(total, { filtered: false });
-      const groupBalances = {};
-      const groupCosts = {};
-      const groupGains = {};
-      const groupGainRates = {};
-      const typeBalances = {};
-      const typeCosts = {};
-      const typeGains = {};
-      const typeGainRates = {};
-      const accountBalances = {};
-      const accountCosts = {};
-      const accountGains = {};
-      const accountGainRates = {};
-      summary.rows.forEach((row) => {
-        const group = accountGroupName(row.account);
-        const type = typeGroupLabelForType(row.account.type);
-        groupBalances[group] = (groupBalances[group] || 0) + (row.converted || 0);
-        groupCosts[group] = (groupCosts[group] || 0) + (row.costConverted || 0);
-        groupGains[group] = (groupGains[group] || 0) + (row.gainConverted || 0);
-        typeBalances[type] = (typeBalances[type] || 0) + (row.converted || 0);
-        typeCosts[type] = (typeCosts[type] || 0) + (row.costConverted || 0);
-        typeGains[type] = (typeGains[type] || 0) + (row.gainConverted || 0);
-        accountBalances[row.account.id] = row.converted || 0;
-        accountCosts[row.account.id] = row.costConverted || 0;
-        accountGains[row.account.id] = row.gainConverted || 0;
-        accountGainRates[row.account.id] = row.costConverted ? (row.gainConverted || 0) / Math.abs(row.costConverted) : 0;
+      const rates = snapshotRates(point.snapshot);
+      const rows = accounts.map((account) => {
+        const balance = convert(Number(point.snapshot.balances?.[account.id] || 0), account.currency, rates);
+        const rawCost = effectiveSnapshotCost(point.snapshot, account);
+        const cost = rawCost === null ? null : convert(rawCost, account.currency, rates);
+        return {
+          account,
+          group: accountGroupName(account),
+          type: typeGroupLabelForType(account.type),
+          balance,
+          cost,
+          gain: cost === null ? null : balance - cost,
+        };
       });
-      Object.keys(groupGains).forEach((group) => {
-        groupGainRates[group] = groupCosts[group] ? groupGains[group] / Math.abs(groupCosts[group]) : 0;
-      });
-      Object.keys(typeGains).forEach((type) => {
-        typeGainRates[type] = typeCosts[type] ? typeGains[type] / Math.abs(typeCosts[type]) : 0;
-      });
+      const bucketRows = (key) => rows.reduce((buckets, row) => {
+        (buckets[row[key]] ||= []).push(row);
+        return buckets;
+      }, {});
+      const groupRows = bucketRows("group");
+      const typeRows = bucketRows("type");
+      const aggregateMap = (buckets, key) => Object.fromEntries(Object.entries(buckets).map(([name, bucket]) => [name, completeTrendAggregate(bucket, key)]));
+      const groupBalances = aggregateMap(groupRows, "balance");
+      const groupCosts = aggregateMap(groupRows, "cost");
+      const groupGains = aggregateMap(groupRows, "gain");
+      const typeBalances = aggregateMap(typeRows, "balance");
+      const typeCosts = aggregateMap(typeRows, "cost");
+      const typeGains = aggregateMap(typeRows, "gain");
+      const accountBalances = Object.fromEntries(rows.map((row) => [row.account.id, row.balance]));
+      const accountCosts = Object.fromEntries(rows.map((row) => [row.account.id, row.cost]));
+      const accountGains = Object.fromEntries(rows.map((row) => [row.account.id, row.gain]));
+      const accountGainRates = Object.fromEntries(rows.map((row) => [row.account.id, trendGainRate(row.gain, row.cost)]));
+      const groupGainRates = Object.fromEntries(Object.keys(groupRows).map((group) => [group, trendGainRate(groupGains[group], groupCosts[group])]));
+      const typeGainRates = Object.fromEntries(Object.keys(typeRows).map((type) => [type, trendGainRate(typeGains[type], typeCosts[type])]));
+      const totalCost = completeTrendAggregate(rows, "cost");
+      const totalGain = completeTrendAggregate(rows, "gain");
       return {
         ...point,
-        totalBalance: summary.rows.reduce((sum, row) => sum + (row.converted || 0), 0),
-        totalCost: summary.totalCost,
-        totalGain: summary.totalGain,
-        totalGainRate: summary.totalCost ? summary.totalGain / Math.abs(summary.totalCost) : 0,
+        totalBalance: completeTrendAggregate(rows, "balance"),
+        totalCost,
+        totalGain,
+        totalGainRate: trendGainRate(totalGain, totalCost),
         groupBalances,
         groupCosts,
         groupGains,
@@ -3140,10 +3336,23 @@ function analysisTrendData() {
         accountCosts,
         accountGains,
         accountGainRates,
-        rowCount: summary.rows.length,
+        rowCount: rows.length,
       };
     })
     .filter((point) => point.rowCount > 0);
+}
+
+function completeTrendAggregate(rows, key) {
+  if (!rows.length || rows.some((row) => optionalNumber(row[key]) === null)) return null;
+  return rows.reduce((sum, row) => sum + Number(row[key]), 0);
+}
+
+function trendGainRate(gain, cost) {
+  const normalizedGain = optionalNumber(gain);
+  const normalizedCost = optionalNumber(cost);
+  return normalizedGain === null || normalizedCost === null || normalizedCost === 0
+    ? null
+    : normalizedGain / Math.abs(normalizedCost);
 }
 
 function renderAnalysisTrend() {
@@ -3160,10 +3369,22 @@ function renderAnalysisTrend() {
     svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#667085">${escapeHtml(metric.empty)}</text>`;
     return;
   }
-  const last = points[points.length - 1];
-  const previous = points[points.length - 2];
-  const totalValue = last[metric.totalKey] || 0;
-  const change = previous ? totalValue - (previous[metric.totalKey] || 0) : 0;
+  const chart = analysisTrendChartModel(points, analysisTrendMode, metric);
+  const selectableMode = analysisTrendSelectableMode();
+  const scopedSummaryKey = selectableMode ? "selectedSeriesTotal" : metric.totalKey;
+  if (selectableMode) {
+    chart.points.forEach((point) => {
+      const values = chart.series.map((item) => optionalNumber(point[item.key]));
+      point[scopedSummaryKey] = values.length && values.every((value) => value !== null)
+        ? (metric.valueType === "percent" && values.length > 1 ? null : values.reduce((sum, value) => sum + value, 0))
+        : null;
+    });
+  }
+  const validSummaryPoints = chart.points.filter((point) => optionalNumber(point[scopedSummaryKey]) !== null);
+  const last = validSummaryPoints.at(-1);
+  const previous = validSummaryPoints.at(-2);
+  const totalValue = last ? last[scopedSummaryKey] : null;
+  const change = last && previous ? totalValue - previous[scopedSummaryKey] : null;
   const modeText = analysisTrendMode === "account"
     ? `按账户${metric.label}`
     : analysisTrendMode === "type"
@@ -3171,11 +3392,11 @@ function renderAnalysisTrend() {
       : analysisTrendMode === "group"
         ? `按分组${metric.label}`
         : `汇总${metric.label}`;
+  const scopeText = selectableMode && chart.series.length === 1 ? chart.series[0].label : modeText;
   summary.innerHTML = `
-    <span>${escapeHtml(modeText)} · 最新${escapeHtml(metric.label)} ${analysisTrendValueHtml(totalValue)}${analysisTrendMetric === "gain" ? ` · ${percentText(last.totalGainRate)}` : ""}</span>
-    ${previous ? `<span>较上一点 ${analysisTrendChangeHtml(change)}</span>` : ""}
+    <span>${escapeHtml(scopeText)}${selectableMode && chart.series.length === 1 ? ` · ${escapeHtml(metric.label)}` : ""} · ${last ? `最近记录点 ${escapeHtml(last.title)} · ${analysisTrendValueHtml(totalValue)}` : `暂无${escapeHtml(metric.label)}记录`}</span>
+    ${previous ? `<span>较上一个完整点 ${analysisTrendChangeHtml(change)}</span>` : ""}
   `;
-  const chart = analysisTrendChartModel(points, analysisTrendMode, metric);
   legend.innerHTML = chart.series.map((item) => `<span><i style="background:${item.color};"></i>${escapeHtml(item.label)}</span>`).join("");
   renderAnalysisTrendChart(svg, chart, metric);
 }
@@ -3285,7 +3506,7 @@ function analysisTrendOptionsGroupsHtml(options) {
 
 function renderInteractiveLineChart(svg, points, series, options = {}) {
   const chartId = options.chartId || "lineChart";
-  const activeSeries = series.filter((item) => points.some((point) => Number.isFinite(Number(point[item.key]))));
+  const activeSeries = series.filter((item) => points.some((point) => optionalNumber(point[item.key]) !== null));
   if (!points.length || !activeSeries.length) {
     svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="#667085">${escapeHtml(options.emptyText || "暂无趋势数据")}</text>`;
     return;
@@ -3300,7 +3521,7 @@ function renderInteractiveLineChart(svg, points, series, options = {}) {
   const axisFontSize = width < 520 ? 11 : 12;
   const xAxisFontSize = axisFontSize;
   const tooltip = lineChartTooltipMetrics(width, activeSeries.length);
-  const values = points.flatMap((point) => activeSeries.map((item) => Number(point[item.key]) || 0));
+  const values = points.flatMap((point) => activeSeries.map((item) => optionalNumber(point[item.key])).filter((value) => value !== null));
   const { min, max, ticks } = chartBounds(values);
   const spread = Math.max(max - min, 1);
   const pointInset = options.pointInset ?? LINE_CHART_DEFAULTS.pointInset;
@@ -3310,8 +3531,8 @@ function renderInteractiveLineChart(svg, points, series, options = {}) {
   const coords = points.map((point, index) => {
     const x = points.length > 1 ? pad.left + pointInset + index * xStep : pad.left + pointInset + plotWidth / 2;
     const seriesCoords = Object.fromEntries(activeSeries.map((item) => {
-      const value = Number(point[item.key]) || 0;
-      return [item.key, { x, y: height - pad.bottom - ((value - min) / spread) * plotHeight }];
+      const value = optionalNumber(point[item.key]);
+      return [item.key, value === null ? null : { x, y: height - pad.bottom - ((value - min) / spread) * plotHeight }];
     }));
     return { ...point, x, seriesCoords };
   });
@@ -3323,17 +3544,21 @@ function renderInteractiveLineChart(svg, points, series, options = {}) {
   }).join("");
   const formatValue = options.valueFormatter || ((value) => state.settings.privacy ? privateMoneyPlaceholder() : formatMoney(value));
   svg.innerHTML = `
+    <desc>${escapeHtml(options.accessibleDescription || `趋势图，共 ${coords.length} 个数据点；聚焦图表后可用左右方向键逐点查看。`)}</desc>
     ${yTicks}
     <line class="chart-axis-line" x1="${pad.left}" y1="${height - pad.bottom}" x2="${width - pad.right}" y2="${height - pad.bottom}" />
     <line class="chart-axis-line chart-axis-line-y" x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${height - pad.bottom}" />
     ${activeSeries.map((item) => {
-      const line = coords.map((point) => `${point.seriesCoords[item.key].x},${point.seriesCoords[item.key].y}`).join(" ");
-      return `<polyline points="${line}" fill="none" stroke="${item.color}" stroke-width="${options.strokeWidth || LINE_CHART_DEFAULTS.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" />`;
+      const segments = lineChartSegments(coords, item.key);
+      return segments.map((segment) => `<polyline points="${segment}" fill="none" stroke="${item.color}" stroke-width="${options.strokeWidth || LINE_CHART_DEFAULTS.strokeWidth}" stroke-linecap="round" stroke-linejoin="round" />`).join("");
     }).join("")}
     ${coords.map((point, index) => `
       <line class="chart-x-tick" x1="${point.x}" y1="${height - pad.bottom}" x2="${point.x}" y2="${height - pad.bottom + 6}" />
       ${shouldShowXAxisLabel(index, coords.length, width, options) ? `<text x="${point.x}" y="${height - 16}" text-anchor="middle" class="chart-axis-label chart-x-label" style="font-size:${xAxisFontSize}px;">${escapeHtml(point.label)}</text>` : ""}
-      ${activeSeries.map((item) => `<circle class="trend-point" cx="${point.seriesCoords[item.key].x}" cy="${point.seriesCoords[item.key].y}" r="${options.pointRadius || LINE_CHART_DEFAULTS.pointRadius}" fill="var(--chart-point-bg)" stroke="${item.color}" stroke-width="${options.pointStrokeWidth || LINE_CHART_DEFAULTS.pointStrokeWidth}"><title>${escapeHtml(point.title)} · ${escapeHtml(item.label)}: ${escapeHtml(formatValue(point[item.key]))}</title></circle>`).join("")}
+      ${activeSeries.map((item) => {
+        const coord = point.seriesCoords[item.key];
+        return coord ? `<circle class="trend-point" cx="${coord.x}" cy="${coord.y}" r="${options.pointRadius || LINE_CHART_DEFAULTS.pointRadius}" fill="var(--chart-point-bg)" stroke="${item.color}" stroke-width="${options.pointStrokeWidth || LINE_CHART_DEFAULTS.pointStrokeWidth}"><title>${escapeHtml(point.title)} · ${escapeHtml(item.label)}: ${escapeHtml(formatValue(point[item.key]))}</title></circle>` : "";
+      }).join("")}
     `).join("")}
     <g id="${chartId}Guide" class="trend-guide" visibility="hidden">
       <line class="trend-guide-x" stroke-dasharray="6 5"></line>
@@ -3344,13 +3569,42 @@ function renderInteractiveLineChart(svg, points, series, options = {}) {
       <text x="${tooltip.x}" y="${tooltip.titleY}" style="font-size:${tooltip.titleFontSize}px;"></text>
       ${activeSeries.map((item, index) => `<text class="money" data-tooltip-series="${item.key}" x="${tooltip.x}" y="${tooltip.firstRowY + index * tooltip.rowHeight}" style="font-size:${tooltip.fontSize}px;"></text>`).join("")}
     </g>
-    <rect id="${chartId}HitArea" class="trend-hit-area" x="${pad.left}" y="${pad.top}" width="${width - pad.left - pad.right}" height="${height - pad.top - pad.bottom}" fill="transparent" />
+    <rect id="${chartId}HitArea" class="trend-hit-area" x="${pad.left}" y="${pad.top}" width="${width - pad.left - pad.right}" height="${height - pad.top - pad.bottom}" fill="transparent" tabindex="0" role="slider" aria-label="趋势图数据点浏览" aria-valuemin="1" aria-valuemax="${coords.length}" aria-valuenow="${coords.length}" aria-valuetext="${escapeHtml(coords.at(-1)?.title || "暂无数据点")}" />
   `;
   const hitArea = svg.querySelector(`#${chartId}HitArea`);
   const showNearest = (event) => showNearestLineChartPoint(event, svg, coords, activeSeries, width, height, pad, chartId, formatValue);
+  let keyboardIndex = coords.length - 1;
+  const showKeyboardPoint = () => {
+    const point = coords[keyboardIndex];
+    showLineChartTooltip(svg, point, activeSeries, width, height, pad, chartId, formatValue);
+    hitArea.setAttribute("aria-valuenow", String(keyboardIndex + 1));
+    hitArea.setAttribute("aria-valuetext", point.title);
+  };
   hitArea.addEventListener("pointermove", showNearest);
   hitArea.addEventListener("pointerdown", showNearest);
+  hitArea.addEventListener("focus", showKeyboardPoint);
+  hitArea.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End", "Escape"].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === "Escape") {
+      hideLineChartTooltip(svg, chartId);
+      return;
+    }
+    if (event.key === "Home") keyboardIndex = 0;
+    else if (event.key === "End") keyboardIndex = coords.length - 1;
+    else keyboardIndex = Math.min(Math.max(keyboardIndex + (event.key === "ArrowRight" ? 1 : -1), 0), coords.length - 1);
+    showKeyboardPoint();
+  });
+  hitArea.addEventListener("blur", () => hideLineChartTooltip(svg, chartId));
   svg.addEventListener("pointerleave", () => hideLineChartTooltip(svg, chartId));
+}
+
+function lineChartSegments(coords, seriesKey) {
+  const points = coords
+    .map((point) => point.seriesCoords[seriesKey])
+    .filter(Boolean)
+    .map((coord) => `${coord.x},${coord.y}`);
+  return points.length ? [points.join(" ")] : [];
 }
 
 function showNearestLineChartPoint(event, svg, coords, activeSeries, width, height, pad, chartId, valueFormatter) {
@@ -3388,8 +3642,7 @@ function showLineChartTooltip(svg, point, activeSeries, width, height, pad, char
   const tooltip = svg.querySelector(`#${chartId}Tooltip`);
   const guide = svg.querySelector(`#${chartId}Guide`);
   if (!tooltip || !guide || !point) return;
-  const firstSeries = activeSeries[0];
-  const anchor = firstSeries ? point.seriesCoords[firstSeries.key] : { x: point.x, y: pad.top };
+  const anchor = activeSeries.map((item) => point.seriesCoords[item.key]).find(Boolean) || { x: point.x, y: pad.top };
   const tooltipWidth = Number(tooltip.dataset.tooltipWidth) || 200;
   const tooltipHeight = Number(tooltip.dataset.tooltipHeight) || 60;
   const minX = Math.min(pad.left + 4, width - tooltipWidth - 4);
@@ -3413,7 +3666,8 @@ function showLineChartTooltip(svg, point, activeSeries, width, height, pad, char
   texts[0].textContent = point.title;
   activeSeries.forEach((item) => {
     const text = tooltip.querySelector(`[data-tooltip-series="${item.key}"]`);
-    if (text) text.textContent = `${item.label}: ${(valueFormatter || ((value) => state.settings.privacy ? privateMoneyPlaceholder() : formatMoney(value)))(point[item.key])}`;
+    const value = optionalNumber(point[item.key]);
+    if (text) text.textContent = `${item.label}: ${value === null ? "未记录" : (valueFormatter || ((number) => state.settings.privacy ? privateMoneyPlaceholder() : formatMoney(number)))(value)}`;
   });
 }
 
@@ -3439,7 +3693,7 @@ function analysisTrendChartModel(points, mode, metric = analysisTrendMetricConfi
     }));
     chartPoints = points.map((point) => ({
       ...point,
-      ...Object.fromEntries(groups.map((group, index) => [`group_${index}`, point[metric.groupKey]?.[group] || 0])),
+      ...Object.fromEntries(groups.map((group, index) => [`group_${index}`, trendMapValue(point[metric.groupKey], group)])),
     }));
   }
   if (mode === "type") {
@@ -3451,7 +3705,7 @@ function analysisTrendChartModel(points, mode, metric = analysisTrendMetricConfi
     }));
     chartPoints = points.map((point) => ({
       ...point,
-      ...Object.fromEntries(types.map((type, index) => [`type_${index}`, point[metric.typeKey]?.[type.id] || 0])),
+      ...Object.fromEntries(types.map((type, index) => [`type_${index}`, trendMapValue(point[metric.typeKey], type.id)])),
     }));
   }
   if (mode === "account") {
@@ -3463,10 +3717,14 @@ function analysisTrendChartModel(points, mode, metric = analysisTrendMetricConfi
     }));
     chartPoints = points.map((point) => ({
       ...point,
-      ...Object.fromEntries(accounts.map((account, index) => [`account_${index}`, point[metric.accountKey]?.[account.id] || 0])),
+      ...Object.fromEntries(accounts.map((account, index) => [`account_${index}`, trendMapValue(point[metric.accountKey], account.id)])),
     }));
   }
   return { points: chartPoints, series };
+}
+
+function trendMapValue(map, key) {
+  return map && Object.hasOwn(map, key) ? map[key] : null;
 }
 
 function renderAnalysisTrendChart(svg, chart, metric = analysisTrendMetricConfig()) {
@@ -3617,28 +3875,47 @@ function breakdownTrendAccounts() {
   });
 }
 
-function explicitSnapshotCost(snapshot, account) {
-  if (snapshot?.costs && Object.hasOwn(snapshot.costs, account.id)) {
-    return optionalNumber(snapshot.costs[account.id]);
-  }
+function effectiveSnapshotCost(snapshot, account) {
+  const currentCost = snapshot?.costs && Object.hasOwn(snapshot.costs, account.id)
+    ? optionalNumber(snapshot.costs[account.id])
+    : null;
+  if (currentCost !== null) return currentCost;
+  const previousCost = [...state.snapshots]
+    .filter((item) => item.date < (snapshot?.date || ""))
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .map((item) => item.costs && Object.hasOwn(item.costs, account.id) ? optionalNumber(item.costs[account.id]) : null)
+    .find((value) => value !== null);
+  if (previousCost !== undefined) return previousCost;
   return optionalNumber(account.costBasis);
 }
 
+function costTrackedAccountIds() {
+  return new Set([
+    ...state.accounts
+      .filter((account) => optionalNumber(account.costBasis) !== null)
+      .map((account) => account.id),
+    ...state.snapshots.flatMap((snapshot) =>
+    Object.entries(snapshot.costs || {})
+      .filter(([, value]) => optionalNumber(value) !== null)
+      .map(([accountId]) => accountId)
+    ),
+  ]);
+}
+
 function breakdownTrendData() {
+  const trackedIds = costTrackedAccountIds();
   const accounts = breakdownTrendAccounts();
+  const costAccounts = accounts.filter((account) => trackedIds.has(account.id));
   return periodSnapshotPoints(breakdownTrendPeriod, periodConfig(breakdownTrendPeriod).limit).map((point) => {
     const rates = snapshotRates(point.snapshot);
-    let balance = 0;
-    let cost = 0;
-    let hasCost = false;
-    accounts.forEach((account) => {
-      balance += convert(Number(point.snapshot.balances?.[account.id] || 0), account.currency, rates);
-      const explicitCost = explicitSnapshotCost(point.snapshot, account);
-      if (explicitCost === null) return;
-      cost += convert(explicitCost, account.currency, rates);
-      hasCost = true;
+    const balance = accounts.reduce((sum, account) =>
+      sum + convert(Number(point.snapshot.balances?.[account.id] || 0), account.currency, rates), 0);
+    const costs = costAccounts.map((account) => {
+      const effectiveCost = effectiveSnapshotCost(point.snapshot, account);
+      return effectiveCost === null ? null : convert(effectiveCost, account.currency, rates);
     });
-    return { ...point, balance, cost, hasCost };
+    const hasCost = costs.length > 0 && costs.every((value) => value !== null);
+    return { ...point, balance, cost: hasCost ? costs.reduce((sum, value) => sum + value, 0) : null, hasCost };
   });
 }
 
@@ -3681,7 +3958,7 @@ function renderBreakdownTrend() {
   setIconHeading($("#breakdownTrendTitle"), "trend", `${scopeName}趋势`);
   $("#breakdownTrendSubtitle").textContent = `${scopeKind} · 按历史快照查看余额与成本`;
   $("#breakdownTrendHeading").textContent = `${activeMetrics.map((metric) => metric.label).join("与")}趋势`;
-  $("#breakdownTrendScopeLabel").textContent = hasCost ? "可同时显示余额与成本" : "该范围暂无成本记录，仅显示余额";
+  $("#breakdownTrendScopeLabel").textContent = hasCost ? "可同时显示余额与成本；未填写时沿用上一个有效成本" : "该范围暂无成本记录，仅显示余额";
   $$('[data-breakdown-trend-metric]').forEach((input) => {
     const isCost = input.dataset.breakdownTrendMetric === "cost";
     input.disabled = isCost && !hasCost;
@@ -3693,7 +3970,7 @@ function renderBreakdownTrend() {
   if (scopedAccount) {
     const latest = latestSnapshot();
     const latestBalance = Number(latest?.balances?.[scopedAccount.id] || 0);
-    const latestCost = explicitSnapshotCost(latest, scopedAccount);
+    const latestCost = effectiveSnapshotCost(latest, scopedAccount);
     accountSummary.innerHTML = `
       <div><span>分组</span><b>${escapeHtml(accountGroupName(scopedAccount))}</b></div>
       <div><span>类型</span><b>${escapeHtml(typeLabel(scopedAccount.type))}</b></div>
@@ -3718,12 +3995,14 @@ function renderBreakdownTrend() {
     svg.innerHTML = `<text x="50%" y="50%" text-anchor="middle" fill="currentColor">暂无趋势数据</text>`;
     return;
   }
-  const last = points[points.length - 1];
-  const previous = points[points.length - 2];
   summary.innerHTML = activeMetrics.map((metric) => {
-    const value = last[metric.key] || 0;
-    const change = previous ? value - (previous[metric.key] || 0) : 0;
-    return `<span>最新${metric.label} ${moneySpan(formatMoney(value))}${previous ? ` · 较上一点 ${analysisTrendChangeHtml(change, metric.key)}` : ""}</span>`;
+    const validPoints = points.filter((point) => optionalNumber(point[metric.key]) !== null);
+    const last = validPoints.at(-1);
+    const previous = validPoints.at(-2);
+    if (!last) return `<span>${metric.label}暂无完整记录</span>`;
+    const value = last[metric.key];
+    const change = previous ? value - previous[metric.key] : null;
+    return `<span>最近${metric.label} ${escapeHtml(last.title)} · ${moneySpan(formatMoney(value))}${previous ? ` · 较上一个完整点 ${analysisTrendChangeHtml(change, metric.key)}` : ""}</span>`;
   }).join("");
   legend.innerHTML = activeMetrics.map((metric) => `<span><i style="background:${metric.color};"></i>${escapeHtml(scopeName)} · ${metric.label}</span>`).join("");
   renderInteractiveLineChart(svg, points, activeMetrics, {
@@ -4374,6 +4653,8 @@ function renderAll() {
   renderSnapshots();
   renderBackupOverview();
   renderCsvExportControls();
+  applyDashboardModuleOrder();
+  renderDashboardLayoutSettings();
 }
 
 function typeLabel(type) {
@@ -4554,6 +4835,7 @@ function backupPayload() {
   const portableSettings = { ...state.settings };
   delete portableSettings.theme;
   delete portableSettings.liquidGlass;
+  delete portableSettings.moduleLayout;
   return JSON.stringify({
     ...state,
     settings: portableSettings,
@@ -4909,6 +5191,7 @@ function logImportFailure(context, error) {
 }
 
 function importJsonContent(content, normalizedData = null) {
+  const previousState = structuredClone(state);
   const imported = normalizedData || normalizeJsonImportData(JSON.parse(content)).data;
   validateJsonImportData(imported);
   const localTheme = normalizedTheme(state.settings.theme);
@@ -4930,7 +5213,10 @@ function importJsonContent(content, normalizedData = null) {
     accounts: imported.accounts.map((account) => normalizeAccount(account, importedSettings.accountTypeGroups)),
     snapshots: importedSnapshots,
   };
-  saveState();
+  if (!saveState()) {
+    state = previousState;
+    throw new Error("JSON import could not be persisted.");
+  }
   applyTheme();
   renderAll();
 }
@@ -4957,7 +5243,7 @@ function importCsvContent(content) {
       if (header.includes("note")) snapshot.note = get(row, "note").trim();
     });
     state.settings.snapshotTags = normalizeSnapshotTagSettings(state.settings.snapshotTags, state.snapshots);
-    saveState();
+    if (!saveState()) throw new Error("CSV import could not be persisted.");
     renderAll();
   } catch (error) {
     state = previousState;
@@ -4992,10 +5278,21 @@ function renderBackupOverview() {
     ["最新快照", latest?.date || "暂无"],
     ["当前净值", money],
     ["本地数据大小", formatStorageSize(storageBytes)],
+    ["数据结构", `v${state.dataSchemaVersion || DATA_SCHEMA_VERSION}`],
+    ["恢复副本", hasValidRecoveryState() ? "已建立" : "待首次保存"],
   ];
   target.innerHTML = items.map(([label, value, hint]) => `
     <article><span>${escapeHtml(label)}</span><b>${escapeHtml(value)}</b>${hint ? `<small>${escapeHtml(hint)}</small>` : ""}</article>
   `).join("");
+}
+
+function hasValidRecoveryState() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(RECOVERY_STORAGE_KEY) || "null");
+    return isPlainObject(parsed) && Array.isArray(parsed.accounts) && Array.isArray(parsed.snapshots);
+  } catch {
+    return false;
+  }
 }
 
 function dateDaysAgo(days) {
@@ -5069,9 +5366,11 @@ function previewJsonImport(content, sourceName = "JSON 备份") {
     (normalizedData.accounts || []).some((account) => optionalNumber(account.costBasis) !== null);
   const schemaVersion = imported.dataSchemaVersion || imported.version || "";
   const appVersion = imported.appVersion || "";
+  const newerSchema = Number(schemaVersion) > DATA_SCHEMA_VERSION;
   const warnings = [...normalized.warnings];
   if (state.accounts.length || state.snapshots.length) warnings.push("JSON 备份会全量覆盖当前浏览器中的账户、快照和设置。");
   if (!schemaVersion) warnings.push("未检测到数据结构版本，将按当前兼容逻辑导入。");
+  if (newerSchema) warnings.push(`该备份的数据结构版本 ${schemaVersion} 高于当前支持的 ${DATA_SCHEMA_VERSION}，为避免降级损坏已阻止导入。`);
   return {
     kind: "json",
     content,
@@ -5092,6 +5391,7 @@ function previewJsonImport(content, sourceName = "JSON 备份") {
     ],
     warnings,
     repairs: normalized.repairs,
+    blocked: newerSchema,
   };
 }
 
@@ -5331,11 +5631,12 @@ function baselineCostsForDate(date) {
     .filter((snapshot) => snapshot.date < date)
     .sort((a, b) => b.date.localeCompare(a.date));
   return Object.fromEntries(state.accounts.flatMap((account) => {
-    const snapshotWithCost = previousSnapshots.find((snapshot) => snapshot.costs && Object.hasOwn(snapshot.costs, account.id));
-    const snapshotCost = snapshotWithCost ? optionalNumber(snapshotWithCost.costs[account.id]) : null;
+    const snapshotCost = previousSnapshots
+      .map((snapshot) => snapshot.costs && Object.hasOwn(snapshot.costs, account.id) ? optionalNumber(snapshot.costs[account.id]) : null)
+      .find((value) => value !== null);
+    if (snapshotCost !== undefined) return [[account.id, snapshotCost]];
     const accountCost = optionalNumber(account.costBasis);
-    const cost = snapshotCost ?? accountCost;
-    return cost === null ? [] : [[account.id, cost]];
+    return accountCost === null ? [] : [[account.id, accountCost]];
   }));
 }
 
@@ -5967,11 +6268,21 @@ function bindEvents() {
   $$('[data-open-sheet]').forEach((button) => {
     button.addEventListener("click", () => openSettingsSheet(button.dataset.openSheet));
   });
+  $("#dashboardLayoutList").addEventListener("click", (event) => {
+    const button = event.target.closest("[data-move-layout]");
+    if (!button) return;
+    const item = button.closest("[data-layout-module]");
+    moveDashboardModule(item?.dataset.layoutModule, button.dataset.moveLayout);
+  });
+  $("#resetDashboardLayout").addEventListener("click", () => {
+    dashboardModuleOrder = [...DEFAULT_DASHBOARD_MODULE_ORDER];
+    saveDashboardModuleOrder();
+    applyDashboardModuleOrder();
+    renderDashboardLayoutSettings();
+    scheduleVisibleChartRender();
+  });
   $("#openFeatureIntro").addEventListener("click", () => {
-    alertDialog(
-      `资产快照本用于手动记录各账户在某一天的余额，帮助你查看净值、资产、负债和分组变化。\n\n当前支持账户管理、余额快照、历史快照、标签备注、本地备份导入，以及基础货币和汇率设置。\n\n所有数据保存在本机浏览器中，建议定期导出 JSON 备份。\n\n当前版本：${APP_VERSION}`,
-      { title: "功能介绍" }
-    );
+    alertDialog(`${featureIntroMessage()}\n\n当前版本：${APP_VERSION}`, { title: "功能介绍" });
   });
   $$('[data-close-sheet]').forEach((button) => {
     button.addEventListener("click", async () => closeSettingsSheet(button.closest(".sheet-backdrop")));
@@ -6977,6 +7288,7 @@ function openSettingsSheet(sheetId) {
     renderCsvExportControls();
   }
   if (sheetId === "appearanceSettingsSheet") applyTheme();
+  if (sheetId === "layoutSettingsSheet") renderDashboardLayoutSettings();
   if (sheetId === "typeSettingsSheet") {
     typeDraft = structuredClone(state.settings.accountTypeGroups);
     typeDraftDirty = false;
@@ -7267,7 +7579,7 @@ function reorderGroup(groupName, targetName, side = "before") {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js?v=141&ui=8").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=142&ui=8").catch(() => {});
   }
 }
 
@@ -7278,3 +7590,8 @@ applyTheme();
 renderAll();
 scheduleVisibleChartRender();
 registerServiceWorker();
+if (startupRecoveryNotice) setBackupStatus(startupRecoveryNotice, "error");
+window.setTimeout(async () => {
+  if (startupRecoveryNotice) await alertDialog(startupRecoveryNotice, { title: "数据恢复提示", variant: "danger" });
+  await showFirstUseIntro();
+}, 0);

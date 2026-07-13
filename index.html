@@ -20,7 +20,7 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=141&ui=8" />
+    <link rel="stylesheet" href="./styles.css?v=142&ui=8" />
     <title>资产快照本</title>
   </head>
   <body>
@@ -49,7 +49,7 @@
           <span class="brand-mark" aria-hidden="true">资</span>
           <div>
             <strong>资产快照本</strong>
-            <span>v0.2.1 / res v141</span>
+            <span>v0.2.1 / res v142</span>
           </div>
         </div>
 
@@ -74,7 +74,7 @@
             <span class="brand-mark" aria-hidden="true">资</span>
             <div>
               <strong>资产快照本</strong>
-              <span>v0.2.1 / res v141</span>
+              <span>v0.2.1 / res v142</span>
             </div>
           </div>
           <div class="page-title">
@@ -88,7 +88,7 @@
           <section class="view active dashboard-view" id="dashboardView">
             <div class="dashboard-layout">
               <div class="dashboard-main">
-                <div class="dashboard-hero-grid">
+                <div class="dashboard-hero-grid" data-dashboard-module="hero">
                   <article class="metric-card net-worth-hero metric-card--net">
             <span><svg class="ui-icon" aria-hidden="true"><use href="#icon-net"></use></svg>最新净值</span>
             <strong id="netWorthValue">-</strong>
@@ -109,7 +109,7 @@
                   </div>
                 </div>
 
-        <section class="panel dashboard-trend-panel">
+        <section class="panel dashboard-trend-panel" data-dashboard-module="trend">
           <div class="panel-heading">
             <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-trend"></use></svg>资产趋势</h2>
             <span id="trendSummary"></span>
@@ -130,7 +130,7 @@
           <svg id="trendChart" class="line-chart" role="img" aria-label="资产负债净值趋势图"></svg>
         </section>
 
-                <section class="panel dashboard-account-panel">
+                <section class="panel dashboard-account-panel" data-dashboard-module="accounts">
           <div class="panel-heading">
             <div>
               <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-accounts"></use></svg>账户明细</h2>
@@ -146,7 +146,7 @@
               </div>
 
               <aside class="dashboard-side">
-          <section class="panel">
+          <section class="panel dashboard-breakdown-panel" data-dashboard-module="breakdowns">
             <div class="panel-heading">
               <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-distribution"></use></svg>分组占比</h2>
               <span>按最新快照</span>
@@ -154,7 +154,7 @@
             <div id="groupBreakdown" class="bars"></div>
           </section>
 
-          <section class="panel">
+          <section class="panel dashboard-breakdown-panel" data-dashboard-module="breakdowns">
             <div class="panel-heading">
               <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-distribution"></use></svg>账户类型占比</h2>
               <span>按类型大类</span>
@@ -713,6 +713,7 @@
             <button class="settings-launcher" data-open-sheet="rateSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-trend"></use></svg></i><b>汇率调整</b><span>手动维护换算汇率</span></button>
             <button class="settings-launcher" data-open-sheet="backupSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-snapshot"></use></svg></i><b>数据管理</b><span>数据备份与导入</span></button>
             <button class="settings-launcher" data-open-sheet="appearanceSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg></i><b>外观模式</b><span>跟随系统、浅色或深色</span></button>
+            <button class="settings-launcher" data-open-sheet="layoutSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-distribution"></use></svg></i><b>页面布局</b><span>调整总览模块顺序</span></button>
             <button class="settings-launcher" data-open-sheet="typeSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-accounts"></use></svg></i><b>账户类型</b><span>管理大类与小类</span></button>
             <button class="settings-launcher" data-open-sheet="tagSettingsSheet" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-filter"></use></svg></i><b>快照标签</b><span>管理快照原因标签</span></button>
             <button class="settings-launcher" id="openFeatureIntro" type="button"><i class="settings-launcher-icon"><svg class="ui-icon" aria-hidden="true"><use href="#icon-settings"></use></svg></i><b>功能介绍</b><span>了解工具用途</span></button>
@@ -771,7 +772,7 @@
               <div id="backupOverviewGrid" class="backup-overview-grid"></div>
             </section>
             <section class="backup-section" aria-labelledby="completeBackupTitle">
-              <div class="backup-section-heading"><h3 id="completeBackupTitle">完整备份与恢复</h3><p>包含账户、快照、货币、分类、标签和业务设置，不含本机外观。</p></div>
+              <div class="backup-section-heading"><h3 id="completeBackupTitle">完整备份与恢复</h3><p>包含账户、快照、货币、分类、标签和业务设置，不含本机外观与页面布局。</p></div>
               <div class="backup-button-grid">
                 <button class="primary-button" id="exportJson" type="button">导出 JSON</button>
                 <button class="secondary-button" id="chooseJson" type="button">导入 JSON</button>
@@ -827,6 +828,17 @@
               </label>
             </div>
             <p class="hint">外观设置仅保存在本机，不随完整 JSON 备份迁移。</p>
+          </section>
+        </div>
+
+        <div class="sheet-backdrop settings-sheet-backdrop" id="layoutSettingsSheet" hidden>
+          <section class="account-sheet" role="dialog" aria-modal="true" aria-labelledby="layoutSettingsTitle">
+            <div class="sheet-heading"><div><h2 id="layoutSettingsTitle"><svg class="ui-icon" aria-hidden="true"><use href="#icon-distribution"></use></svg>页面布局</h2><span>调整总览页中窄屏与移动端的模块顺序</span></div><button class="sheet-close" data-close-sheet type="button" aria-label="关闭">×</button></div>
+            <div id="dashboardLayoutList" class="module-layout-list" aria-label="总览模块顺序"></div>
+            <div class="module-layout-actions">
+              <button class="secondary-button" id="resetDashboardLayout" type="button">恢复默认顺序</button>
+            </div>
+            <p class="hint">电脑宽屏继续使用固定双栏布局。此偏好仅保存在本机，不写入 JSON 备份。</p>
           </section>
         </div>
 
@@ -932,6 +944,6 @@
       </section>
     </div>
 
-    <script src="./app.js?v=141&ui=8" defer></script>
+    <script src="./app.js?v=142&ui=8" defer></script>
   </body>
 </html>
