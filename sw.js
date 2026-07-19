@@ -1,12 +1,16 @@
 const CACHE_PREFIX = "asset-snapshot-book-";
-const CACHE_NAME = `${CACHE_PREFIX}v142-ui8`;
+const CACHE_NAME = `${CACHE_PREFIX}v142-ui9-icons2`;
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=142&ui=8",
-  "./app.js?v=142&ui=8",
+  "./styles.css?v=142&ui=9",
+  "./app.js?v=142&ui=9",
   "./manifest.webmanifest",
   "./icon.svg",
+  "./icon-192.png",
+  "./icon-512.png",
+  "./icon-maskable-512.png",
+  "./apple-touch-icon.png?v=2",
 ];
 
 self.addEventListener("install", (event) => {

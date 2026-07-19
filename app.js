@@ -7579,7 +7579,7 @@ function reorderGroup(groupName, targetName, side = "before") {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js?v=142&ui=8").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=142&ui=9").catch(() => {});
   }
 }
 
