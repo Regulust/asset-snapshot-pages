@@ -4891,7 +4891,7 @@ select {
 .import-preview-dialog {
   border-color: var(--line-soft);
   border-radius: var(--radius);
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--surface-panel);
   box-shadow: var(--shadow-soft);
 }
 
@@ -7878,3 +7878,56 @@ input[type="checkbox"]:disabled {
 label:has(input[type="checkbox"]) {
   cursor: pointer;
 }
+
+/* Heatmap interaction: keep the compact calendar, with full-cell targets. */
+.heatmap-days .heatmap-cell {
+  width: 100%;
+  min-height: 32px;
+  height: auto;
+  padding: 0;
+  font-family: inherit;
+  font-size: 11px;
+}
+button.heatmap-cell {
+  cursor: pointer;
+  touch-action: manipulation;
+}
+button.heatmap-cell:hover {
+  box-shadow: inset 0 0 0 2px var(--text-primary);
+}
+button.heatmap-cell:focus-visible,
+.heatmap-month-summary[role="button"]:focus-visible {
+  outline: 2px solid var(--text-primary);
+  outline-offset: 2px;
+}
+.heatmap-cell.has-snapshot.level-1,
+.heatmap-cell.has-snapshot.level-2,
+.heatmap-month-summary.has-snapshot.level-1,
+.heatmap-month-summary.has-snapshot.level-2 {
+  color: #10213b;
+}
+.heatmap-interaction-hint {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: var(--text-caption, 12px);
+  line-height: 1.5;
+}
+@media (pointer: coarse) {
+  .heatmap-days .heatmap-cell { min-height: 36px; }
+}
+
+/* One opaque, device-local screen for lock and credential management. */
+html.app-lock-visible, html.app-lock-concealed { background: var(--surface-page); }
+html.app-lock-visible body { overflow: auto; }
+#appLockScreen { min-height: 100dvh; place-items: center; padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom)); background: var(--surface-page); }
+.app-lock-card { width: min(100%, 420px); padding: 24px; background: var(--surface-panel); color: var(--text-primary); border: 1px solid var(--line); border-radius: var(--radius); }
+.app-lock-card h1 { font-size: 22px; margin: 0 0 12px; }
+#appLockForm, #appLockNewFields, #appLockRecoveryFields { display: grid; gap: 14px; }
+#appLockScreen [hidden] { display: none !important; }
+#appLockForm label:not(.check-row) { display: grid; gap: 6px; font-size: 14px; }
+#appLockForm input[type=password] { width: 100%; min-height: 48px; font-size: 24px; letter-spacing: 10px; }
+#appLockForm input[type=file] { width: 100%; min-width: 0; }
+#appLockForm button { min-height: 44px; }
+#appLockForm .check-row { align-items: start; font-size: 13px; line-height: 1.6; }
+#appLockStatus { margin: 0; color: var(--red); font-size: 13px; overflow-wrap: anywhere; }
+@media(max-width: 480px) { .app-lock-card { padding: 20px; } }

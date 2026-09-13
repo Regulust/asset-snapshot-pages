@@ -3,7 +3,7 @@ const RECOVERY_STORAGE_KEY = `${STORAGE_KEY}-recovery`;
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}-corrupt`;
 const LAYOUT_STORAGE_KEY = `${STORAGE_KEY}-local-layout`;
 const WELCOME_STORAGE_KEY = `${STORAGE_KEY}-welcome-v142-ui8`;
-const APP_VERSION = "v0.2.1 / res v142";
+const APP_VERSION = "v0.2.2 / res v145";
 const DATA_SCHEMA_VERSION = 3;
 const DASHBOARD_MODULES = [
   { id: "hero", label: "净值区域", description: "最新净值、资产与负债概览" },
@@ -132,7 +132,7 @@ const defaultState = {
 
 let startupRecoveryNotice = "";
 let storageWriteWarningShown = false;
-let state = loadState();
+let state = appLockStartupError ? structuredClone(defaultState) : loadState();
 let dashboardModuleOrder = loadDashboardModuleOrder();
 let editingAccountId = null;
 let editingAccountBalanceInitial = "";
@@ -161,6 +161,7 @@ let selectedReportSnapshotId = null;
 let selectedReportTreemapGroup = null;
 let contributionPeriod = "day";
 let contributionLookback = 2;
+let heatmapHistoryReturnState = null;
 let snapshotHeatmapMode = "day";
 let snapshotHeatmapYear = "";
 let snapshotHeatmapMonth = "";
@@ -1825,14 +1826,12 @@ function openHealthDetail(kind) {
       </button>
     `).join("")
     : emptyHtml();
-  $("#healthDetailSheet").hidden = false;
-  document.body.classList.add("sheet-open");
+  setSheetVisible($("#healthDetailSheet"), true);
 }
 
 function closeHealthDetailSheet() {
-  $("#healthDetailSheet").hidden = true;
+  setSheetVisible($("#healthDetailSheet"), false);
   activeHealthDetailKind = null;
-  if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
 }
 
 function healthDetailData(kind, total) {
@@ -2306,9 +2305,8 @@ async function deleteCustomHealthCardByKey(cardKey) {
   healthScopeDraftDirty = false;
   saveState();
   renderAnalysis();
-  $("#healthDetailSheet").hidden = true;
+  setSheetVisible($("#healthDetailSheet"), false);
   if (!$("#healthScopeSheet").hidden) await closeSettingsSheet($("#healthScopeSheet"));
-  if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
 }
 
 function showTreemapTooltip(tile) {
@@ -2354,14 +2352,12 @@ function openHistoricalReport(snapshotId) {
   selectedReportSnapshotId = snapshotId;
   selectedReportTreemapGroup = null;
   renderHistoricalReport();
-  $("#historicalReportSheet").hidden = false;
-  document.body.classList.add("sheet-open");
+  setSheetVisible($("#historicalReportSheet"), true);
 }
 
 function closeHistoricalReportSheet() {
-  $("#historicalReportSheet").hidden = true;
+  setSheetVisible($("#historicalReportSheet"), false);
   selectedReportTreemapGroup = null;
-  if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
 }
 
 function renderHistoricalReport() {
@@ -3126,7 +3122,9 @@ function renderSnapshotHeatmapByDay({ container, summary, year, month }) {
         const title = stat
           ? `${date} · ${dayMetric.valueLabel} ${dayMetric.format(heatmapMetricRawValue(stat)).replace(/<[^>]+>/g, "")}`
           : `${date} · 无快照`;
-        return `<span class="heatmap-cell ${stat ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${day}</span>`;
+        return stat
+          ? `<button type="button" class="heatmap-cell has-snapshot density level-${level}" data-heatmap-date="${date}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}，查看当天快照">${day}</button>`
+          : `<span class="heatmap-cell level-0" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${day}</span>`;
       }),
     ].join("");
     const responsiveClass = index === 0 ? " is-wide-only" : index === 1 ? " is-medium-only" : "";
@@ -3140,42 +3138,8 @@ function renderSnapshotHeatmapByDay({ container, summary, year, month }) {
   }).join("");
   container.innerHTML = `
     ${heatmapLegendHtml(dayMetric.legend)}
+    <p class="heatmap-interaction-hint">点击有记录的日期查看当天快照</p>
     <div class="heatmap-day-months">${monthsHtml}</div>
-  `;
-  return;
-  const monthPrefix = `${year}-${month}`;
-  const entries = stats.filter((stat) => stat.date.startsWith(monthPrefix));
-  if (!entries.length) {
-    summary.textContent = `${year}-${month} · 暂无快照`;
-    container.innerHTML = `<div class="empty-state">该月份暂无快照。</div>`;
-    return;
-  }
-  const metric = snapshotHeatmapMetricConfig();
-  const maxCount = Math.max(...entries.map((stat) => heatmapMetricDensityValue(stat)), 1);
-  const snapshotDays = entries.length;
-  summary.textContent = `${year}-${month} · ${snapshotDays} 个日期有快照 · ${metric.label}`;
-  const dayCount = new Date(Number(year), Number(month), 0).getDate();
-  const firstDay = new Date(Number(year), Number(month) - 1, 1).getDay();
-  const cells = [
-    ...Array.from({ length: firstDay }, () => `<span class="heatmap-cell is-empty"></span>`),
-    ...Array.from({ length: dayCount }, (_, dayIndex) => {
-      const day = dayIndex + 1;
-      const date = dateKey(year, Number(month), day);
-      const stat = byDate[date];
-      const value = heatmapMetricDensityValue(stat);
-      const level = stat ? heatmapLevel(value || 1, maxCount) : 0;
-      const title = stat ? `${date} · ${metric.valueLabel} ${metric.format(heatmapMetricRawValue(stat)).replace(/<[^>]+>/g, "")}` : `${date} · 无快照`;
-      return `<span class="heatmap-cell ${stat ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${day}</span>`;
-    }),
-  ].join("");
-  container.innerHTML = `
-    ${heatmapLegendHtml(metric.legend)}
-    <section class="heatmap-month heatmap-month-single">
-      <h3>${Number(month)}月</h3>
-      <div class="heatmap-weekdays" aria-hidden="true"><span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span></div>
-      <div class="heatmap-days">${cells}</div>
-    </section>
-    ${heatmapDetailPanelHtml(entries.slice().sort((a, b) => heatmapMetricDensityValue(b) - heatmapMetricDensityValue(a)), `${year}-${month} 明细`)}
   `;
 }
 
@@ -3198,35 +3162,19 @@ function renderSnapshotHeatmapByMonth({ container, summary, year }) {
   summary.textContent = `${snapshotHeatmapRange === "year" ? year : `近 ${snapshotHeatmapRange} 月`} · ${activeMonths.length} 个月有快照 · ${metric.label}`;
   container.innerHTML = `
     ${heatmapLegendHtml(metric.legend)}
+    <p class="heatmap-interaction-hint">点击有记录的月份查看日历</p>
     <div class="heatmap-month-summary-grid">
       ${counts.map((item) => {
         const value = heatmapMetricDensityValue(item);
         const level = item.days ? heatmapLevel(value || 1, maxCount) : 0;
         const title = item.days ? `${item.monthKey} · ${item.days} 个日期有快照` : `${item.monthKey} · 无快照`;
         return `
-          <article class="heatmap-month-summary ${item.days ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" role="button" tabindex="${item.days ? "0" : "-1"}" data-heatmap-month="${escapeHtml(item.monthKey)}">
+          <article class="heatmap-month-summary ${item.days ? `has-snapshot density level-${level}` : "level-0"}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}" ${item.days ? `role="button" tabindex="0" data-heatmap-month="${escapeHtml(item.monthKey)}"` : ""}>
             <b>${snapshotHeatmapRange === "year" ? `${Number(item.monthKey.slice(5))}月` : item.monthKey}</b>
             <span>${item.days ? `${item.days} 天 · ${metric.format(heatmapMetricRawValue(item))}` : "无"}</span>
           </article>
         `;
       }).join("")}
-    </div>
-  `;
-}
-
-function heatmapDetailPanelHtml(items, title) {
-  const metric = snapshotHeatmapMetricConfig();
-  const rows = items.slice(0, 6);
-  if (!rows.length) return `<div class="heatmap-detail-panel"><h3>${escapeHtml(title)}</h3><div class="empty-state">暂无可展示明细。</div></div>`;
-  return `
-    <div class="heatmap-detail-panel">
-      <h3>${escapeHtml(title)}</h3>
-      ${rows.map((item) => `
-        <div class="heatmap-detail-row">
-          <span>${escapeHtml(item.date || item.monthKey)} · ${item.count || item.days || 0} ${item.date ? "条" : "天"}</span>
-          <b>${metric.format(heatmapMetricRawValue(item))}</b>
-        </div>
-      `).join("")}
     </div>
   `;
 }
@@ -3929,15 +3877,13 @@ function openBreakdownTrend(mode, key) {
   visibleBreakdownTrendMetrics.add("balance");
   visibleBreakdownTrendMetrics.add("cost");
   breakdownTrendPeriod = "month";
-  $("#breakdownTrendSheet").hidden = false;
-  document.body.classList.add("sheet-open");
+  setSheetVisible($("#breakdownTrendSheet"), true);
   renderBreakdownTrend();
 }
 
 function closeBreakdownTrendSheet() {
-  $("#breakdownTrendSheet").hidden = true;
+  setSheetVisible($("#breakdownTrendSheet"), false);
   breakdownTrendScope = null;
-  if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
 }
 
 function renderBreakdownTrend() {
@@ -4304,15 +4250,13 @@ function renderSnapshotRateEditor() {
 function openSnapshotRateDialog() {
   renderSnapshotRateEditor();
   if ($("#openSnapshotRates").disabled) return;
-  $("#snapshotRateDialog").hidden = false;
-  document.body.classList.add("sheet-open");
+  setSheetVisible($("#snapshotRateDialog"), true);
   window.setTimeout(() => $("#snapshotRateInputs input")?.focus(), 0);
 }
 
 function closeSnapshotRateDialog({ apply = false } = {}) {
   if (apply) syncSnapshotRateDraftFromInputs();
-  $("#snapshotRateDialog").hidden = true;
-  if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
+  setSheetVisible($("#snapshotRateDialog"), false);
 }
 
 function updateSnapshotRateSummary() {
@@ -5477,8 +5421,7 @@ function previewCsvImport(content, sourceName = "CSV 快照") {
 
 function renderImportPreview(preview) {
   pendingImportPreview = preview;
-  $("#importPreview").hidden = false;
-  document.body.classList.add("sheet-open");
+  setSheetVisible($("#importPreview"), true);
   $("#importPreviewTitle").textContent = preview.title;
   $("#importPreviewSubtitle").textContent = preview.subtitle;
   $("#importPreviewBadge").textContent = preview.badge;
@@ -5515,10 +5458,9 @@ function renderImportPreview(preview) {
 
 function clearImportPreview() {
   pendingImportPreview = null;
-  $("#importPreview").hidden = true;
+  setSheetVisible($("#importPreview"), false);
   $("#importPreviewContent").innerHTML = "";
   $("#confirmImportPreview").disabled = false;
-  if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
 }
 
 async function confirmPendingImport() {
@@ -5858,12 +5800,18 @@ function bindEvents() {
     renderSnapshotHeatmap();
   });
   $("#snapshotHeatmap")?.addEventListener("click", (event) => {
+    const day = event.target.closest("[data-heatmap-date]");
+    if (day) {
+      openHeatmapSnapshotHistory(day.dataset.heatmapDate);
+      return;
+    }
     const card = event.target.closest("[data-heatmap-month]");
     if (!card || !card.dataset.heatmapMonth) return;
     snapshotHeatmapYear = card.dataset.heatmapMonth.slice(0, 4);
     snapshotHeatmapMonth = card.dataset.heatmapMonth.slice(5, 7);
     snapshotHeatmapMode = "day";
     renderSnapshotHeatmap();
+    $("#snapshotHeatmapMonth")?.focus();
   });
   $("#snapshotHeatmap")?.addEventListener("keydown", (event) => {
     if (!["Enter", " "].includes(event.key)) return;
@@ -7265,13 +7213,28 @@ function resetAccountForm() {
   $("#deleteAccountFromForm").removeAttribute("data-delete-account");
 }
 
+// Keep scroll locked until the last sheet closes, including nested sheets.
+function syncSheetScrollLock() {
+  document.body.classList.toggle("sheet-open", Boolean($(".sheet-backdrop:not([hidden]), .snapshot-rate-backdrop:not([hidden]), .import-preview-backdrop:not([hidden])")));
+}
+
+function setSheetVisible(sheet, visible) {
+  if (!sheet) return;
+  if (visible) mountSheetInMain(sheet);
+  sheet.hidden = !visible;
+  syncSheetScrollLock();
+}
+
+// Shared entry sheets must remain accessible from every main view.
+function mountSheetInMain(sheet) {
+  if (sheet?.parentElement?.classList.contains("view")) {
+    document.querySelector("main")?.appendChild(sheet);
+  }
+}
+
 function openAccountSheet() {
   const accountSheet = $("#accountSheet");
-  if (accountSheet?.parentElement?.classList.contains("view")) {
-    document.querySelector("main")?.appendChild(accountSheet);
-  }
-  accountSheet.hidden = false;
-  document.body.classList.add("sheet-open");
+  setSheetVisible(accountSheet, true);
   window.setTimeout(() => $("#accountForm").elements.name.focus(), 0);
 }
 
@@ -7335,8 +7298,7 @@ function openSettingsSheet(sheetId) {
     selectedTagNames.clear();
     renderTagManager();
   }
-  sheet.hidden = false;
-  document.body.classList.add("sheet-open");
+  setSheetVisible(sheet, true);
 }
 
 async function closeSettingsSheet(sheet) {
@@ -7391,8 +7353,7 @@ async function closeSettingsSheet(sheet) {
     tagManageMode = false;
     selectedTagNames.clear();
   }
-  sheet.hidden = true;
-  if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
+  setSheetVisible(sheet, false);
 }
 
 function syncTypeDraftFromInputs() {
@@ -7454,40 +7415,48 @@ async function saveTagDraft() {
 }
 
 function closeAccountSheet() {
-  $("#accountSheet").hidden = true;
-  document.body.classList.remove("sheet-open");
+  setSheetVisible($("#accountSheet"), false);
   resetAccountForm();
 }
 
 function openSnapshotSheet(snapshotId = null) {
   const snapshotSheet = $("#snapshotSheet");
-  if (snapshotSheet?.parentElement?.classList.contains("view")) {
-    document.querySelector("main")?.appendChild(snapshotSheet);
-  }
   editingSnapshotId = snapshotId;
   renderSnapshotForm();
-  snapshotSheet.hidden = false;
-  document.body.classList.add("sheet-open");
+  setSheetVisible(snapshotSheet, true);
   window.setTimeout(() => $("#snapshotDate").focus(), 0);
 }
 
 function closeSnapshotSheet() {
-  $("#snapshotRateDialog").hidden = true;
-  $("#snapshotSheet").hidden = true;
+  setSheetVisible($("#snapshotRateDialog"), false);
+  setSheetVisible($("#snapshotSheet"), false);
   editingSnapshotId = null;
   snapshotRateDraft = null;
   snapshotInlineTagAdding = false;
   snapshotInlineTagDraft = "";
   $("#snapshotForm").dataset.editingSnapshotId = "";
   $("#snapshotDate").value = localDateString();
-  if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
+}
+
+// Reuse history without overwriting the user's previous search and selection.
+function openHeatmapSnapshotHistory(date) {
+  if (!state.snapshots.some((snapshot) => snapshot.date === date)) return;
+  heatmapHistoryReturnState = {
+    date, query: snapshotSearchQuery, from: snapshotDateFrom, to: snapshotDateTo,
+    tags: new Set(selectedSnapshotTagFilters), selected: new Set(selectedSnapshotIds),
+    manage: snapshotManageMode, showAll: showAllSnapshots,
+  };
+  snapshotSearchQuery = "";
+  snapshotDateFrom = date;
+  snapshotDateTo = date;
+  selectedSnapshotTagFilters.clear();
+  selectedSnapshotIds.clear();
+  snapshotManageMode = false;
+  showAllSnapshots = true;
+  openSnapshotHistorySheet();
 }
 
 function openSnapshotHistorySheet(mode = "edit") {
-  const historySheet = $("#snapshotHistorySheet");
-  if (historySheet?.parentElement?.classList.contains("view")) {
-    document.querySelector("main")?.appendChild(historySheet);
-  }
   snapshotHistoryMode = mode;
   if (mode === "report") {
     snapshotManageMode = false;
@@ -7497,16 +7466,32 @@ function openSnapshotHistorySheet(mode = "edit") {
   } else {
     setIconHeading($("#snapshotHistoryTitle"), "calendar", "\u5386\u53f2\u5feb\u7167");
   }
+  // Expand the newest month in the current filter whenever history opens.
+  const newestMonth = filteredSnapshotsSorted()[0]?.date.slice(0, 7);
+  if (newestMonth) openSnapshotMonths.add(newestMonth);
   renderSnapshots();
-  $("#snapshotHistorySheet").hidden = false;
-  document.body.classList.add("sheet-open");
+  setSheetVisible($("#snapshotHistorySheet"), true);
   window.setTimeout(() => $("#snapshotSearchInput").focus(), 0);
 }
 
 function closeSnapshotHistorySheet() {
-  $("#snapshotHistorySheet").hidden = true;
+  setSheetVisible($("#snapshotHistorySheet"), false);
   snapshotHistoryMode = "edit";
-  if ($$(".sheet-backdrop:not([hidden])").length === 0) document.body.classList.remove("sheet-open");
+  if (heatmapHistoryReturnState) {
+    const previous = heatmapHistoryReturnState;
+    heatmapHistoryReturnState = null;
+    snapshotSearchQuery = previous.query;
+    snapshotDateFrom = previous.from;
+    snapshotDateTo = previous.to;
+    selectedSnapshotTagFilters.clear();
+    previous.tags.forEach((tag) => selectedSnapshotTagFilters.add(tag));
+    selectedSnapshotIds.clear();
+    previous.selected.forEach((id) => selectedSnapshotIds.add(id));
+    snapshotManageMode = previous.manage;
+    showAllSnapshots = previous.showAll;
+    renderSnapshots();
+    $(`[data-heatmap-date="${previous.date}"]`)?.focus();
+  }
 }
 
 function startAccountEdit(accountId) {
@@ -7579,7 +7564,7 @@ function reorderGroup(groupName, targetName, side = "before") {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js?v=142&ui=9").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=145&ui=10").catch(() => {});
   }
 }
 
@@ -7591,7 +7576,7 @@ renderAll();
 scheduleVisibleChartRender();
 registerServiceWorker();
 if (startupRecoveryNotice) setBackupStatus(startupRecoveryNotice, "error");
-window.setTimeout(async () => {
+initAppLock().then(() => window.setTimeout(async () => {
   if (startupRecoveryNotice) await alertDialog(startupRecoveryNotice, { title: "数据恢复提示", variant: "danger" });
   await showFirstUseIntro();
-}, 0);
+}, 0));

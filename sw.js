@@ -1,10 +1,12 @@
+// v145: device-local app lock and recovery.
 const CACHE_PREFIX = "asset-snapshot-book-";
-const CACHE_NAME = `${CACHE_PREFIX}v142-ui9-icons2`;
+const CACHE_NAME = `${CACHE_PREFIX}v145-ui10`;
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=142&ui=9",
-  "./app.js?v=142&ui=9",
+  "./styles.css?v=145&ui=10",
+  "./app.js?v=145&ui=10",
+  "./app-lock.js?v=145&ui=10",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-192.png",
