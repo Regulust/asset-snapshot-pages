@@ -3,7 +3,7 @@ const RECOVERY_STORAGE_KEY = `${STORAGE_KEY}-recovery`;
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}-corrupt`;
 const LAYOUT_STORAGE_KEY = `${STORAGE_KEY}-local-layout`;
 const WELCOME_STORAGE_KEY = `${STORAGE_KEY}-welcome-v142-ui8`;
-const APP_VERSION = "v0.2.2 / res v145";
+const APP_VERSION = "v0.2.3 / res v147";
 const DATA_SCHEMA_VERSION = 3;
 const DASHBOARD_MODULES = [
   { id: "hero", label: "净值区域", description: "最新净值、资产与负债概览" },
@@ -1242,39 +1242,9 @@ function renderCurrencyOptions() {
     .map((item) => `<option value="${item.code}">${item.code} · ${item.name}</option>`)
     .join("");
   $("#accountCurrency").innerHTML = options;
-  $("#baseCurrency").innerHTML = allCurrencies()
-    .map((item) => `<option value="${item.code}">${item.code} · ${item.name}</option>`)
-    .join("");
-  $("#baseCurrency").value = state.settings.baseCurrency;
   if (!editingAccountId) $("#accountCurrency").value = state.settings.baseCurrency;
   renderAccountRateField();
-  const used = new Set(state.accounts.map((account) => account.currency));
-  const enabled = state.settings.enabledCurrencies || [];
-  const validCodes = new Set(allCurrencies().map((item) => item.code));
-  [...selectedCurrencyCodes].forEach((code) => {
-    if (!validCodes.has(code)) selectedCurrencyCodes.delete(code);
-  });
-  renderManageButton($("#toggleCurrencyManage"), currencyManageMode);
-  $("#deleteSelectedCurrencies").hidden = !currencyManageMode;
-  $("#deleteSelectedCurrencies").disabled = selectedCurrencyCodes.size === 0;
-  $("#currencyChoices").innerHTML = allCurrencies().map((item) => {
-    const locked = item.code === state.settings.baseCurrency || used.has(item.code);
-    const checked = enabled.includes(item.code) || locked;
-    const manageChecked = selectedCurrencyCodes.has(item.code) ? "checked" : "";
-    const manageTitle = item.code === state.settings.baseCurrency
-      ? "主货币不能删除"
-      : used.has(item.code)
-        ? "有账户正在使用该货币，不能删除"
-        : "选择货币";
-    return `
-      <div class="currency-choice">
-        ${currencyManageMode ? `<input data-select-currency="${item.code}" type="checkbox" ${manageChecked} title="${manageTitle}" />` : ""}
-        <input name="enabledCurrency" type="checkbox" value="${item.code}" ${checked ? "checked" : ""} ${locked ? "disabled" : ""} />
-        <span><b>${item.code}</b>${item.name}</span>
-        ${locked ? '<small>使用中</small>' : ""}
-      </div>
-    `;
-  }).join("");
+  renderCurrencyDraft();
 }
 
 function renderAccountTypeOptions(selectedType) {
@@ -1289,23 +1259,6 @@ function renderAccountTypeOptions(selectedType) {
     )
     .join("");
   if (selectedType && select.querySelector(`option[value="${CSS.escape(selectedType)}"]`)) select.value = selectedType;
-}
-
-function renderRates() {
-  const base = state.settings.baseCurrency;
-  $("#rateSettingsSubtitle").textContent = `以 ${base} 为主货币，1 单位外币可兑换的 ${base}`;
-  $("#rateInputs").innerHTML = enabledCurrencies()
-    .map((item) => {
-      const value = relativeRateValue(item.code);
-      const step = significantStep(value);
-      return `
-        <label>
-          1 ${item.code} = 多少 ${base}
-          <input name="${item.code}" type="number" step="${step}" min="0" value="${Number(value.toPrecision(8))}" ${item.code === base ? "disabled" : ""} />
-        </label>
-      `;
-    })
-    .join("");
 }
 
 function renderAccountRateField() {
@@ -4587,7 +4540,6 @@ function renderSnapshotFilters() {
 function renderAll() {
   renderCurrencyOptions();
   renderAccountTypeOptions(editingAccountId ? state.accounts.find((account) => account.id === editingAccountId)?.type : undefined);
-  renderRates();
   renderTypeManager();
   renderTagManager();
   renderDashboard();
@@ -4865,19 +4817,6 @@ function normalizeCurrencySettings(settings, accounts, fallbackSettings = state.
     enabledCurrencies,
     rates,
   };
-}
-
-function importCurrencySettingsContent(content) {
-  const imported = JSON.parse(content);
-  if (!imported || typeof imported !== "object") throw new Error("Invalid currency config");
-  const normalized = normalizeCurrencySettings(imported, state.accounts, state.settings);
-  state.settings.baseCurrency = normalized.baseCurrency;
-  state.settings.customCurrencies = normalized.customCurrencies;
-  state.settings.deletedCurrencyCodes = normalized.deletedCurrencyCodes;
-  state.settings.enabledCurrencies = normalized.enabledCurrencies;
-  state.settings.rates = normalized.rates;
-  saveState();
-  renderAll();
 }
 
 function setBackupStatus(message, kind = "success") {
@@ -6321,83 +6260,6 @@ function bindEvents() {
   $("#cancelAccountEdit").addEventListener("click", closeAccountSheet);
   $("#accountCurrency").addEventListener("change", renderAccountRateField);
 
-  $("#customCurrencyForm").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const code = data.get("code").trim().toUpperCase();
-    const name = data.get("name").trim();
-    const symbol = data.get("symbol").trim();
-    if (!/^[A-Z0-9]{2,6}$/.test(code)) {
-      await alertDialog("货币代码请使用 2 至 6 位大写字母或数字。");
-      return;
-    }
-    const builtInCurrency = currencies.find((item) => item.code === code);
-    if (builtInCurrency && (state.settings.deletedCurrencyCodes || []).includes(code)) {
-      state.settings.deletedCurrencyCodes = (state.settings.deletedCurrencyCodes || []).filter((item) => item !== code);
-      state.settings.enabledCurrencies = [...new Set([...(state.settings.enabledCurrencies || []), code])];
-      state.settings.rates[code] = state.settings.rates[code] || builtInCurrency.rate || 1;
-      saveState();
-      event.currentTarget.reset();
-      renderAll();
-      setCurrencyConfigStatus(`已恢复内置货币 ${code}。`);
-      return;
-    }
-    if ([...currencies, ...(state.settings.customCurrencies || [])].some((item) => item.code === code)) {
-      await alertDialog(`货币 ${code} 已经存在。`);
-      return;
-    }
-    state.settings.customCurrencies.push({ code, name, symbol, rate: 1 });
-    state.settings.enabledCurrencies.push(code);
-    state.settings.rates[code] = 1;
-    saveState();
-    event.currentTarget.reset();
-    renderAll();
-  });
-
-  $("#toggleCurrencyManage").addEventListener("click", () => {
-    currencyManageMode = !currencyManageMode;
-    selectedCurrencyCodes.clear();
-    renderCurrencyOptions();
-  });
-  $("#currencyChoices").addEventListener("change", (event) => {
-    const checkbox = event.target.closest("[data-select-currency]");
-    if (!checkbox) return;
-    if (checkbox.checked) selectedCurrencyCodes.add(checkbox.dataset.selectCurrency);
-    else selectedCurrencyCodes.delete(checkbox.dataset.selectCurrency);
-    renderCurrencyOptions();
-  });
-  $("#deleteSelectedCurrencies").addEventListener("click", async () => {
-    const selected = [...selectedCurrencyCodes];
-    if (!selected.length) return;
-    const blockers = selected.flatMap((code) => {
-      if (code === state.settings.baseCurrency) return [`${code}：当前主货币`];
-      const usedAccounts = state.accounts.filter((account) => account.currency === code);
-      return usedAccounts.length ? [`${code}：${usedAccounts.map((account) => account.name).join("、")}`] : [];
-    });
-    if (blockers.length) {
-      await alertDialog(`以下货币正在使用或为主货币，无法删除：\n\n${blockers.map((item) => `• ${item}`).join("\n")}\n\n如需删除，请先调整相关账户或主货币。`, {
-        title: "无法删除货币",
-      });
-      return;
-    }
-    const ok = await confirmDialog(`确定删除选中的 ${selected.length} 个货币吗？\n\n${selected.join("、")}\n\n删除后会从可用货币和汇率中移除。`, {
-      title: "删除货币",
-      confirmText: "删除",
-      variant: "danger",
-    });
-    if (!ok) return;
-    state.settings.enabledCurrencies = (state.settings.enabledCurrencies || []).filter((item) => !selected.includes(item));
-    state.settings.customCurrencies = (state.settings.customCurrencies || []).filter((item) => !selected.includes(item.code));
-    const builtInDeleted = selected.filter((code) => currencies.some((item) => item.code === code));
-    state.settings.deletedCurrencyCodes = [...new Set([...(state.settings.deletedCurrencyCodes || []), ...builtInDeleted])];
-    selected.forEach((code) => delete state.settings.rates[code]);
-    selectedCurrencyCodes.clear();
-    currencyManageMode = false;
-    saveState();
-    renderAll();
-    setCurrencyConfigStatus(`已删除 ${selected.length} 个货币。`);
-  });
-
   $("#typeGroupForm").addEventListener("submit", (event) => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -6970,58 +6832,6 @@ function bindEvents() {
     await saveSnapshotFromForm(form);
   });
 
-  $("#currencyForm").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const baseCurrency = data.get("baseCurrency");
-    const required = state.accounts.map((account) => account.currency);
-    state.settings.baseCurrency = baseCurrency;
-    state.settings.enabledCurrencies = [...new Set([baseCurrency, ...required, ...data.getAll("enabledCurrency")])];
-    saveState();
-    renderAll();
-    closeSettingsSheet($("#currencySettingsSheet"));
-  });
-
-  $("#exportCurrencyConfig").addEventListener("click", () => {
-    const ok = download(`asset-currency-settings-${new Date().toISOString().slice(0, 10)}.json`, currencySettingsPayload(), "application/json;charset=utf-8");
-    setCurrencyConfigStatus(ok ? "已请求下载货币配置 JSON。" : "货币配置导出失败。", ok ? "success" : "error");
-  });
-
-  $("#chooseCurrencyConfig").addEventListener("click", () => {
-    setCurrencyConfigStatus("请选择一个货币配置 JSON 文件。");
-    $("#importCurrencyConfig").click();
-  });
-
-  $("#importCurrencyConfig").addEventListener("change", async (event) => {
-    const file = event.target.files[0];
-    if (!file) return;
-    try {
-      importCurrencySettingsContent(await readFile(file));
-      setCurrencyConfigStatus(`已导入货币配置：${file.name}`);
-    } catch (error) {
-      console.error("Currency config import failed", error);
-      setCurrencyConfigStatus("货币配置导入失败，请确认文件格式正确。", "error");
-      await alertDialog("货币配置导入失败，请确认选择的是本应用导出的货币配置 JSON。");
-    }
-    event.target.value = "";
-  });
-
-  $("#rateForm").addEventListener("submit", (event) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const base = state.settings.baseCurrency;
-    const baseRate = Number(state.settings.rates[base] || 1);
-    enabledCurrencies().forEach((item) => {
-      if (item.code === base) return;
-      const relativeRate = Number(data.get(item.code));
-      if (relativeRate > 0) state.settings.rates[item.code] = relativeRate * baseRate;
-    });
-    syncLatestSnapshotRates();
-    saveState();
-    renderAll();
-    closeSettingsSheet($("#rateSettingsSheet"));
-  });
-
   $("#exportJson").addEventListener("click", async () => {
     prepareBackupText(false);
     setBackupStatus("请选择 JSON 备份保存位置，可在保存对话框中修改文件名。");
@@ -7242,9 +7052,7 @@ function openSettingsSheet(sheetId) {
   const sheet = $(`#${sheetId}`);
   if (!sheet) return;
   if (sheetId === "currencySettingsSheet") {
-    currencyManageMode = false;
-    selectedCurrencyCodes.clear();
-    renderCurrencyOptions();
+    beginCurrencyDraft();
   }
   if (sheetId === "backupSettingsSheet") {
     renderBackupOverview();
@@ -7303,6 +7111,11 @@ function openSettingsSheet(sheetId) {
 
 async function closeSettingsSheet(sheet) {
   if (!sheet) return;
+  if (sheet.id === "currencySettingsSheet") {
+    if (currencyDraftDirty() && !await confirmDialog("货币与汇率有未保存的修改，是否放弃？", {title:"未保存的设置",confirmText:"放弃修改",cancelText:"继续编辑"})) return;
+    currencyDraft = null;
+    currencyPendingRates = {};
+  }
   if (sheet.id === "typeSettingsSheet" && typeDraftDirty) {
     syncTypeDraftFromInputs();
     const saveChanges = await confirmDialog("账户类型还有未保存的修改。\n\n点击“确定”保存修改；点击“取消”放弃修改并退出。", {
@@ -7564,13 +7377,14 @@ function reorderGroup(groupName, targetName, side = "before") {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js?v=145&ui=10").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=147&ui=10").catch(() => {});
   }
 }
 
 bindUIShellDetection();
 bindThemePreference();
 bindEvents();
+bindCurrencySettings();
 applyTheme();
 renderAll();
 scheduleVisibleChartRender();

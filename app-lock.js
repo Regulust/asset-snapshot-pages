@@ -32,6 +32,24 @@ function restoreLockTransaction() {
 // Run before app.js reads its main data, so interrupted recovery is rolled back first.
 try { restoreLockTransaction(); } catch (error) { appLockStartupError = error.message; }
 
+const APP_LOCK_TIMEOUTS = [60, 120, 300, 600, 0];
+function appLockTimeout(config = appLockConfig) {
+  return APP_LOCK_TIMEOUTS.includes(config?.autoLockSeconds) ? config.autoLockSeconds : 60;
+}
+function saveAppLockTimeout(value) {
+  const seconds = Number(value);
+  if (!appLockConfig || !APP_LOCK_TIMEOUTS.includes(seconds)) return;
+  const next = { ...appLockConfig, autoLockSeconds: seconds };
+  try {
+    localStorage.setItem(APP_LOCK_KEY, JSON.stringify(next));
+    appLockConfig = next;
+    document.querySelector("#appLockTimeoutStatus").textContent = "已保存，仅对当前设备生效。";
+  } catch {
+    document.querySelector("#appLockTimeoutStatus").textContent = "保存失败，已保留原设置。";
+  }
+  renderAppLockSettings();
+}
+
 function readAppLock() {
   const raw = localStorage.getItem(APP_LOCK_KEY);
   if (!raw) return null;
@@ -50,7 +68,7 @@ async function appLockHash(pin, salt) {
 
 async function newAppLockConfig(pin) {
   const salt = Array.from(crypto.getRandomValues(new Uint8Array(16)), value => value.toString(16).padStart(2, "0")).join("");
-  return { version: 1, salt, hash: await appLockHash(pin, salt) };
+  return { version: 1, salt, hash: await appLockHash(pin, salt), autoLockSeconds: appLockTimeout() };
 }
 
 function appLockStatus(message = "") {
@@ -105,6 +123,9 @@ function lockAppNow() {
 
 function renderAppLockSettings() {
   const enabled = Boolean(appLockConfig);
+  const timeout = document.querySelector("#appLockTimeout");
+  timeout.disabled = !enabled;
+  timeout.value = String(appLockTimeout());
   document.querySelector("#appLockSettingsStatus").textContent = enabled ? "已开启 · 四位数密码" : "未开启 · 仅本机生效";
   for (const button of document.querySelectorAll("[data-app-lock-action]")) {
     button.hidden = button.dataset.appLockAction === "enable" ? enabled : !enabled;
@@ -182,6 +203,7 @@ async function submitAppLock(event) {
 function initAppLock() {
   document.querySelector("#appLockIntro").textContent = APP_LOCK_INTRO;
   document.querySelector("#appLockForm").addEventListener("submit", submitAppLock);
+  document.querySelector("#appLockTimeout").addEventListener("change", event => saveAppLockTimeout(event.target.value));
   document.querySelector("#appLockForgot").addEventListener("click", () => { if (!appLockBusy) showAppLock("recover"); });
   document.querySelector("#appLockCancel").addEventListener("click", () => {
     if (appLockBusy) return;
@@ -214,7 +236,7 @@ function initAppLock() {
       appLockHiddenAt = Date.now();
       document.documentElement.classList.add("app-lock-concealed");
     } else {
-      if (appLockHiddenAt !== null && Date.now() - appLockHiddenAt >= 30000) lockAppNow();
+      if (appLockTimeout() > 0 && appLockHiddenAt !== null && Date.now() - appLockHiddenAt >= appLockTimeout() * 1000) lockAppNow();
       appLockHiddenAt = null;
       document.documentElement.classList.remove("app-lock-concealed");
     }

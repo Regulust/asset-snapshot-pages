@@ -7931,3 +7931,23 @@ html.app-lock-visible body { overflow: auto; }
 #appLockForm .check-row { align-items: start; font-size: 13px; line-height: 1.6; }
 #appLockStatus { margin: 0; color: var(--red); font-size: 13px; overflow-wrap: anywhere; }
 @media(max-width: 480px) { .app-lock-card { padding: 20px; } }
+
+.currency-editor-list { display: grid; gap: 0; }
+.currency-editor-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(180px, .8fr); gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--line); }
+.currency-editor-name, .currency-editor-name label { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.currency-editor-name span { overflow-wrap: anywhere; font-size: 13px; }
+.currency-editor-name small { color: var(--muted); white-space: nowrap; font-size: 11px; }
+.currency-editor-rate { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; font-size: 12px; }
+.currency-editor-rate input { width: 100%; min-width: 0; min-height: 40px; }
+.currency-editor-actions { position: sticky; bottom: -18px; display: flex; justify-content: flex-end; gap: 10px; padding: 14px 0; background: var(--surface-panel); border-top: 1px solid var(--line); }
+.currency-editor-actions button { min-height: 44px; }
+.currency-settings-sheet details { margin-top: 16px; }
+.currency-settings-sheet summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; color: var(--text-primary); }
+@media(max-width: 600px) { .currency-editor-row { grid-template-columns: minmax(0,1fr); gap: 8px; } .currency-editor-rate { grid-template-columns: 70px minmax(0,1fr) 40px; } }
+
+.page-privacy-actions { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; }
+.header-lock-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; padding: 0; }
+.header-lock-button[hidden] { display: none; }
+.header-lock-button .ui-icon { width: 19px; height: 19px; }
+.app-lock-timeout-field { display: grid; gap: 8px; font-size: 14px; }
+.app-lock-timeout-field select { width: 100%; min-height: 44px; }
