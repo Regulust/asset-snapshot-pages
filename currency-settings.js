@@ -45,7 +45,7 @@ function renderCurrencyDraft() {
   const available = draftCurrencies();
   $("#baseCurrency").innerHTML = available.map(item => `<option value="${escapeHtml(item.code)}">${escapeHtml(item.code)} · ${escapeHtml(item.name)}</option>`).join("");
   $("#baseCurrency").value = base;
-  renderManageButton($("#toggleCurrencyManage"), currencyManageMode);
+  renderManageButton($("#toggleCurrencyManage"), currencyManageMode, "批量删除");
   $("#deleteSelectedCurrencies").hidden = !currencyManageMode;
   $("#deleteSelectedCurrencies").disabled = !selectedCurrencyCodes.size;
   $("#currencyChoices").innerHTML = available.map(item => {

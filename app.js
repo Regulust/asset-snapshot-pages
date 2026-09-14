@@ -7377,7 +7377,7 @@ function reorderGroup(groupName, targetName, side = "before") {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js?v=147&ui=10").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=147&ui=11").catch(() => {});
   }
 }
 

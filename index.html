@@ -30,7 +30,7 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=147&ui=10" />
+    <link rel="stylesheet" href="./styles.css?v=147&ui=11" />
     <title>资产快照本</title>
   </head>
   <body>
@@ -763,7 +763,7 @@
             <form id="currencyForm" class="form-grid compact" novalidate>
               <label>主货币<select id="baseCurrency" name="baseCurrency"></select></label>
               <p class="hint">金额统一折算为主货币。切换主货币会换算下方汇率。</p>
-              <div class="field-row-heading"><span class="field-label">币种与汇率</span><div class="panel-actions"><button class="secondary-button small" id="toggleCurrencyManage" type="button">管理</button><button class="danger-button" id="deleteSelectedCurrencies" type="button" hidden disabled>删除</button></div></div>
+              <div class="field-row-heading"><span class="field-label">币种与汇率</span><div class="panel-actions"><button class="secondary-button small" id="toggleCurrencyManage" type="button">批量删除</button><button class="danger-button" id="deleteSelectedCurrencies" type="button" hidden disabled>删除</button></div></div>
               <div id="currencyChoices" class="currency-editor-list"></div>
               <p class="hint">保存汇率将更新最新快照的折算结果；较早快照保留已有汇率。</p>
             </form>
@@ -980,8 +980,8 @@
       </section>
     </div>
 
-    <script src="./app-lock.js?v=147&ui=10" defer></script>
-    <script src="./currency-settings.js?v=147&ui=10" defer></script>
-    <script src="./app.js?v=147&ui=10" defer></script>
+    <script src="./app-lock.js?v=147&ui=11" defer></script>
+    <script src="./currency-settings.js?v=147&ui=11" defer></script>
+    <script src="./app.js?v=147&ui=11" defer></script>
   </body>
 </html>
