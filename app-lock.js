@@ -4,7 +4,7 @@
 const APP_LOCK_KEY = "asset-snapshot-book-v1-app-lock";
 const APP_LOCK_TRANSACTION_KEY = `${APP_LOCK_KEY}-transaction`;
 const APP_LOCK_DATA_KEYS = ["asset-snapshot-book-v1", "asset-snapshot-book-v1-recovery", "asset-snapshot-book-v1-corrupt", APP_LOCK_KEY];
-const APP_LOCK_INTRO = "应用锁用于防止他人随手查看界面，不加密本地数据或导出的备份。密码仅保存在当前设备，不随备份导出。忘记密码后，可用完整 JSON 备份恢复并设置新密码；备份之后新增的记录将无法保留。";
+const APP_LOCK_INTRO = "应用锁用于防止他人随手查看界面，不加密本地数据或导出的备份。密码仅保存在当前设备，不随备份导出。忘记密码后，可用完整 JSON 备份恢复，可选择重新开启应用锁；备份之后新增的记录将无法保留。";
 let appLockConfig = null;
 let appIsLocked = false;
 let appLockMode = "unlock";
@@ -14,6 +14,7 @@ let appLockPendingBackup = null;
 let appLockReadyResolve = null;
 let appLockStartupError = "";
 let appLockScreenRevision = 0;
+let appLockReturnScroll = 0;
 
 function restoreLockTransaction() {
   const raw = localStorage.getItem(APP_LOCK_TRANSACTION_KEY);
@@ -80,6 +81,7 @@ function clearAppLockInputs() {
 }
 
 function showAppLock(mode = "unlock") {
+  if (!document.documentElement.classList.contains("app-lock-visible")) appLockReturnScroll = window.scrollY || 0;
   appLockScreenRevision += 1;
   appLockMode = mode;
   appLockPendingBackup = null;
@@ -87,32 +89,60 @@ function showAppLock(mode = "unlock") {
   document.querySelector("#appLockFile").value = "";
   document.querySelector("#appLockBackupSummary").textContent = "";
   document.querySelector("#appLockRecoveryConfirm").checked = false;
+  document.querySelector("#appLockRecoveryEnable").checked = false;
   appLockStatus();
   document.documentElement.classList.add("app-lock-visible");
   const titles = { unlock: "输入应用锁密码", enable: "开启应用锁", change: "修改应用锁密码", disable: "关闭应用锁", recover: "从备份恢复" };
   document.querySelector("#appLockTitle").textContent = titles[mode];
   document.querySelector("#appLockOldRow").hidden = !["unlock", "change", "disable"].includes(mode);
-  document.querySelector("#appLockNewFields").hidden = !["enable", "change", "recover"].includes(mode);
+  document.querySelector("#appLockNewFields").hidden = !["enable", "change"].includes(mode);
   document.querySelector("#appLockRecoveryFields").hidden = mode !== "recover";
   document.querySelector("#appLockForgot").hidden = mode !== "unlock";
   document.querySelector("#appLockCancel").hidden = mode === "unlock";
-  document.querySelector("#appLockSubmit").textContent = {unlock:"解锁",enable:"开启应用锁",change:"保存新密码",disable:"关闭应用锁",recover:"恢复并设置新密码"}[mode];
+  document.querySelector("#appLockSubmit").textContent = {unlock:"解锁",enable:"开启应用锁",change:"保存新密码",disable:"关闭应用锁",recover:"恢复备份"}[mode];
   document.querySelector("#appLockSubmit").disabled = Boolean(appLockStartupError);
   if (appLockStartupError) appLockStatus("上次恢复尚未完成回滚，请刷新重试。原站点数据请勿清除。");
   requestAnimationFrame(() => {
-    if (mode === "recover") document.querySelector("#appLockFile").focus();
-    else document.querySelector(["unlock", "change", "disable"].includes(mode) ? "#appLockOld" : "#appLockNew").focus();
+    if (mode === "recover") document.querySelector("#appLockFile").focus({ preventScroll: true });
+    else document.querySelector(["unlock", "change", "disable"].includes(mode) ? "#appLockOld" : "#appLockNew").focus({ preventScroll: true });
   });
 }
 
 function finishAppUnlock() {
+  document.activeElement?.blur?.();
   appIsLocked = false;
   clearAppLockInputs();
   appLockPendingBackup = null;
   document.documentElement.classList.remove("app-lock-visible", "app-lock-initializing");
+  restoreAppLockScroll();
   renderAppLockSettings();
   appLockReadyResolve?.();
   appLockReadyResolve = null;
+}
+
+// Keyboard dismissal can resize the visual viewport after the form disappears.
+function restoreAppLockScroll() {
+  const revision = appLockScreenRevision;
+  const viewport = window.visualViewport;
+  let stopped = false;
+  const restore = () => {
+    if (!stopped && revision === appLockScreenRevision && !document.documentElement.classList.contains("app-lock-visible")) {
+      window.scrollTo({ top: appLockReturnScroll, left: 0, behavior: "instant" });
+    }
+  };
+  const stop = () => {
+    stopped = true;
+    viewport?.removeEventListener("resize", restore);
+    window.removeEventListener("pointerdown", stop);
+    window.removeEventListener("touchstart", stop);
+    window.removeEventListener("wheel", stop);
+    window.removeEventListener("keydown", stop);
+  };
+  restore();
+  requestAnimationFrame(restore);
+  viewport?.addEventListener("resize", restore);
+  for (const event of ["pointerdown", "touchstart", "wheel", "keydown"]) window.addEventListener(event, stop, { once: true, passive: true });
+  window.setTimeout(stop, 800);
 }
 
 function lockAppNow() {
@@ -144,7 +174,8 @@ async function recoverAppLockBackup(config) {
     const restored = localStorage.getItem(STORAGE_KEY);
     localStorage.setItem(RECOVERY_STORAGE_KEY, restored);
     localStorage.removeItem(CORRUPT_STORAGE_KEY);
-    localStorage.setItem(APP_LOCK_KEY, JSON.stringify(config));
+    if (config) localStorage.setItem(APP_LOCK_KEY, JSON.stringify(config));
+    else localStorage.removeItem(APP_LOCK_KEY);
     localStorage.removeItem(APP_LOCK_TRANSACTION_KEY);
   } catch (error) {
     state = oldState;
@@ -155,6 +186,7 @@ async function recoverAppLockBackup(config) {
     throw new Error("恢复失败，原数据与原密码已保留。请检查存储空间后重试。");
   }
   appLockConfig = config;
+  appLockReturnScroll = 0;
   resetInteractionState();
   // Old editor drafts and generated backup text must not expose replaced data.
   document.querySelectorAll(".sheet-backdrop, .snapshot-rate-backdrop, .import-preview-backdrop").forEach(sheet => { sheet.hidden = true; });
@@ -180,7 +212,8 @@ async function submitAppLock(event) {
       }
     }
     if (revision !== appLockScreenRevision) throw new Error("锁定状态已变化，请重新操作。");
-    if (["enable", "change", "recover"].includes(mode)) {
+    const recoveryWithLock = mode === "recover" && document.querySelector("#appLockRecoveryEnable").checked;
+    if (["enable", "change"].includes(mode) || recoveryWithLock) {
       if (!/^[0-9]{4}$/.test(pin)) throw new Error("新密码须为四位数字，可包含前导零。");
       if (pin !== document.querySelector("#appLockRepeat").value) throw new Error("两次新密码不一致，请重新输入。");
       const config = await newAppLockConfig(pin);
@@ -191,6 +224,7 @@ async function submitAppLock(event) {
         appLockConfig = config;
       }
     }
+    if (mode === "recover" && !recoveryWithLock) await recoverAppLockBackup(null);
     if (mode === "disable") {
       localStorage.removeItem(APP_LOCK_KEY);
       appLockConfig = null;
@@ -203,6 +237,12 @@ async function submitAppLock(event) {
 function initAppLock() {
   document.querySelector("#appLockIntro").textContent = APP_LOCK_INTRO;
   document.querySelector("#appLockForm").addEventListener("submit", submitAppLock);
+  document.querySelector("#appLockRecoveryEnable").addEventListener("change", event => {
+    if (appLockMode !== "recover") return;
+    document.querySelector("#appLockNewFields").hidden = !event.target.checked;
+    clearAppLockInputs();
+    document.querySelector("#appLockSubmit").textContent = event.target.checked ? "恢复并开启应用锁" : "恢复备份";
+  });
   document.querySelector("#appLockTimeout").addEventListener("change", event => saveAppLockTimeout(event.target.value));
   document.querySelector("#appLockForgot").addEventListener("click", () => { if (!appLockBusy) showAppLock("recover"); });
   document.querySelector("#appLockCancel").addEventListener("click", () => {
@@ -227,7 +267,7 @@ function initAppLock() {
       validateJsonImportData(normalized.data);
       appLockPendingBackup = normalized.data;
       document.querySelector("#appLockBackupSummary").textContent = `所选备份：${normalized.data.accounts.length} 个账户，${normalized.data.snapshots.length} 条快照。`;
-      appLockStatus("备份预检通过。请确认覆盖并设置新密码。");
+      appLockStatus("备份预检通过。请确认覆盖；也可选择设置新密码。");
     } catch (error) { appLockStatus(error.message || "备份无效，当前数据未修改。"); }
   });
   document.addEventListener("visibilitychange", () => {
@@ -260,5 +300,6 @@ function initAppLock() {
   document.documentElement.classList.remove("app-lock-initializing");
   if (!appIsLocked) return Promise.resolve();
   showAppLock();
+  appLockReturnScroll = 0;
   return new Promise(resolve => { appLockReadyResolve = resolve; });
 }

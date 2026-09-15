@@ -3,7 +3,7 @@ const RECOVERY_STORAGE_KEY = `${STORAGE_KEY}-recovery`;
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}-corrupt`;
 const LAYOUT_STORAGE_KEY = `${STORAGE_KEY}-local-layout`;
 const WELCOME_STORAGE_KEY = `${STORAGE_KEY}-welcome-v142-ui8`;
-const APP_VERSION = "v0.2.3 / res v147";
+const APP_VERSION = "v0.2.3 / res v148";
 const DATA_SCHEMA_VERSION = 3;
 const DASHBOARD_MODULES = [
   { id: "hero", label: "净值区域", description: "最新净值、资产与负债概览" },
@@ -1283,7 +1283,7 @@ function renderAccountRateField() {
 
 function renderDashboard() {
   document.body.classList.toggle("hidden-money", state.settings.privacy);
-  $("#privacyToggle").textContent = state.settings.privacy ? "显示金额" : "隐藏金额";
+  $("#privacyToggle").innerHTML = `<svg class="ui-icon" aria-hidden="true"><use href="#icon-${state.settings.privacy ? "eye" : "eye-off"}"></use></svg><span>${state.settings.privacy ? "显示金额" : "隐藏金额"}</span>`;
 
   const latest = latestSnapshot();
   const previous = previousSnapshot();
@@ -7377,7 +7377,7 @@ function reorderGroup(groupName, targetName, side = "before") {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js?v=147&ui=11").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=148&ui=11").catch(() => {});
   }
 }
 
