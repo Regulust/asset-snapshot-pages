@@ -30,7 +30,7 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=148&ui=11" />
+    <link rel="stylesheet" href="./styles.css?v=149&ui=11" />
     <title>资产快照本</title>
   </head>
   <body>
@@ -87,7 +87,7 @@
           <span class="brand-mark" aria-hidden="true">资</span>
           <div>
             <strong>资产快照本</strong>
-            <span>v0.2.3 / res v148</span>
+            <span>v0.2.3 / res v149</span>
           </div>
         </div>
 
@@ -112,7 +112,7 @@
             <span class="brand-mark" aria-hidden="true">资</span>
             <div>
               <strong>资产快照本</strong>
-              <span>v0.2.3 / res v148</span>
+              <span>v0.2.3 / res v149</span>
             </div>
           </div>
           <div class="page-title">
@@ -178,6 +178,7 @@
               <span id="accountCountText"></span>
             </div>
             <div class="panel-actions">
+              <button class="secondary-button small" data-overview-limit="accounts" aria-controls="accountTable" aria-expanded="false" type="button" hidden>查看全部</button>
               <button class="secondary-button small" id="toggleOverviewGroups" type="button">全部展开</button>
               <button class="secondary-button small" id="toggleOverviewAccountSort" type="button">排序</button>
             </div>
@@ -190,7 +191,7 @@
           <section class="panel dashboard-breakdown-panel" data-dashboard-module="breakdowns">
             <div class="panel-heading">
               <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-distribution"></use></svg>分组占比</h2>
-              <span>按最新快照</span>
+              <div class="panel-actions"><span>按最新快照</span><button class="secondary-button small" data-overview-limit="groups" aria-controls="groupBreakdown" aria-expanded="false" type="button" hidden>查看全部</button></div>
             </div>
             <div id="groupBreakdown" class="bars"></div>
           </section>
@@ -198,7 +199,7 @@
           <section class="panel dashboard-breakdown-panel" data-dashboard-module="breakdowns">
             <div class="panel-heading">
               <h2><svg class="ui-icon" aria-hidden="true"><use href="#icon-distribution"></use></svg>账户类型占比</h2>
-              <span>按类型大类</span>
+              <div class="panel-actions"><span>按类型大类</span><button class="secondary-button small" data-overview-limit="types" aria-controls="typeBreakdown" aria-expanded="false" type="button" hidden>查看全部</button></div>
             </div>
             <div id="typeBreakdown" class="bars"></div>
           </section>
@@ -984,8 +985,8 @@
       </section>
     </div>
 
-    <script src="./app-lock.js?v=148&ui=11" defer></script>
-    <script src="./currency-settings.js?v=148&ui=11" defer></script>
-    <script src="./app.js?v=148&ui=11" defer></script>
+    <script src="./app-lock.js?v=149&ui=11" defer></script>
+    <script src="./currency-settings.js?v=149&ui=11" defer></script>
+    <script src="./app.js?v=149&ui=11" defer></script>
   </body>
 </html>

@@ -7985,3 +7985,16 @@ html.app-lock-visible { overflow-anchor: none; }
   .page-privacy-actions { gap: 4px; }
   #privacyToggle { padding: 0 8px; }
 }
+
+/* Overview list controls share the existing compact button sizing. */
+.dashboard-account-panel > .panel-heading .panel-actions { display: flex; flex-wrap: wrap; }
+.dashboard-breakdown-panel .panel-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 6px; }
+.dashboard-recent-item { width: 100%; border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; text-align: left; cursor: pointer; border-radius: 0; }
+.dashboard-recent-item:hover { background: var(--control-hover); }
+.dashboard-recent-item:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+#accountTable { overflow-anchor: none; }
+@media (max-width: 600px) {
+  .dashboard-account-panel > .panel-heading { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-account-panel > .panel-heading .panel-actions { justify-content: flex-end; }
+  .dashboard-breakdown-panel > .panel-heading { flex-wrap: wrap; }
+}

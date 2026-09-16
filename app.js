@@ -3,7 +3,7 @@ const RECOVERY_STORAGE_KEY = `${STORAGE_KEY}-recovery`;
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}-corrupt`;
 const LAYOUT_STORAGE_KEY = `${STORAGE_KEY}-local-layout`;
 const WELCOME_STORAGE_KEY = `${STORAGE_KEY}-welcome-v142-ui8`;
-const APP_VERSION = "v0.2.3 / res v148";
+const APP_VERSION = "v0.2.3 / res v149";
 const DATA_SCHEMA_VERSION = 3;
 const DASHBOARD_MODULES = [
   { id: "hero", label: "净值区域", description: "最新净值、资产与负债概览" },
@@ -143,6 +143,8 @@ let typeDraft = null;
 let typeDraftDirty = false;
 let accountSortMode = false;
 let overviewAccountSortMode = false;
+const expandedOverviewLists = new Set();
+const OVERVIEW_ITEM_LIMIT = 5;
 let editingAccountGroupName = null;
 let snapshotManageMode = false;
 let showAllSnapshots = false;
@@ -1014,6 +1016,7 @@ function resetInteractionState() {
   typeDraftDirty = false;
   accountSortMode = false;
   overviewAccountSortMode = false;
+  expandedOverviewLists.clear();
   editingAccountGroupName = null;
   snapshotManageMode = false;
   showAllSnapshots = false;
@@ -1331,10 +1334,10 @@ function renderDashboardRecentSnapshots() {
   container.innerHTML = snapshots.map((snapshot) => {
     const total = snapshotTotal(snapshot);
     return `
-      <article class="dashboard-recent-item">
+      <button class="dashboard-recent-item" type="button" data-recent-snapshot="${escapeHtml(snapshot.id)}" aria-label="查看或编辑 ${escapeHtml(snapshot.date)} 快照">
         <span>${escapeHtml(snapshot.date)}</span>
         <b>${moneySpan(formatMoney(total.net))}</b>
-      </article>
+      </button>
     `;
   }).join("");
 }
@@ -3708,8 +3711,33 @@ function healthTrendChangeText(value) {
   return `<b class="${number >= 0 ? "positive" : "negative"}">${number >= 0 ? "+" : ""}${number.toFixed(1)}pct</b>`;
 }
 
+function overviewVisibleItems(key, entries, forceAll = false) {
+  const button = $(`[data-overview-limit="${key}"]`);
+  const expanded = forceAll || expandedOverviewLists.has(key);
+  button.hidden = entries.length <= OVERVIEW_ITEM_LIMIT;
+  button.disabled = forceAll;
+  button.textContent = expanded ? "收起" : `查看全部（${entries.length}）`;
+  button.setAttribute("aria-expanded", String(expanded));
+  return expanded ? entries : entries.slice(0, OVERVIEW_ITEM_LIMIT);
+}
+
+// Keep existing nodes and focus when expanding groups; do not rebuild upstream cards.
+function syncOverviewGroupExpansion() {
+  const headings = $$("#accountTable [data-toggle-account-group]");
+  for (const heading of headings) {
+    const collapsed = collapsedOverviewGroups.has(heading.dataset.toggleAccountGroup);
+    heading.setAttribute("aria-expanded", String(!collapsed));
+    heading.querySelector(".group-chevron").textContent = collapsed ? "▸" : "▾";
+    const section = heading.closest(".account-group");
+    section.classList.toggle("is-collapsed", collapsed);
+    section.querySelector(".account-group-rows").hidden = collapsed;
+  }
+  $("#toggleOverviewGroups").textContent = headings.every(heading => collapsedOverviewGroups.has(heading.dataset.toggleAccountGroup)) ? "全部展开" : "全部折叠";
+}
+
 function renderGroups(total) {
   const entries = Object.entries(total.groups).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const visibleEntries = overviewVisibleItems("groups", entries);
   if (entries.length === 0) {
     $("#groupBreakdown").innerHTML = emptyHtml();
     return;
@@ -3718,7 +3746,7 @@ function renderGroups(total) {
     entries.reduce((sum, [, value]) => sum + Math.abs(value), 0),
     1
   );
-  $("#groupBreakdown").innerHTML = entries
+  $("#groupBreakdown").innerHTML = visibleEntries
     .map(([group, value], index) => {
       const percent = Math.abs(value) / denominator;
       const colors = chartPalette();
@@ -3744,13 +3772,14 @@ function renderTypeBreakdown(total) {
       totals[groupName] = (totals[groupName] || 0) + Math.abs(row.converted);
     });
   const entries = Object.entries(totals).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
+  const visibleEntries = overviewVisibleItems("types", entries);
   if (!entries.length) {
     $("#typeBreakdown").innerHTML = emptyHtml();
     return;
   }
   const denominator = Math.max(entries.reduce((sum, [, value]) => sum + Math.abs(value), 0), 1);
   const colors = chartPalette().slice().reverse();
-  $("#typeBreakdown").innerHTML = entries
+  $("#typeBreakdown").innerHTML = visibleEntries
     .map(([name, value], index) => {
       const percent = Math.abs(value) / denominator;
       return `
@@ -3958,6 +3987,8 @@ function renderAccountTable(total) {
     (row) => !row.account.archived && (row.account.includeInNetWorth !== false || row.raw !== 0)
   );
   if (rows.length === 0) {
+    overviewVisibleItems("accounts", []);
+    $("#toggleOverviewGroups").disabled = true;
     $("#accountTable").innerHTML = emptyHtml();
     return;
   }
@@ -3971,9 +4002,11 @@ function renderAccountTable(total) {
     orderedGroups.forEach((group) => collapsedOverviewGroups.add(group));
     overviewGroupsInitialized = true;
   }
-  const allGroupsCollapsed = orderedGroups.every((group) => collapsedOverviewGroups.has(group));
+  $("#toggleOverviewGroups").disabled = false;
+  const visibleGroups = overviewVisibleItems("accounts", orderedGroups, overviewAccountSortMode);
+  const allGroupsCollapsed = visibleGroups.every((group) => collapsedOverviewGroups.has(group));
   $("#toggleOverviewGroups").textContent = allGroupsCollapsed ? "全部展开" : "全部折叠";
-  $("#accountTable").innerHTML = orderedGroups
+  $("#accountTable").innerHTML = visibleGroups
     .map((group) => {
       const groupRows = grouped[group];
       const subtotal = groupRows.reduce((sum, row) => sum + row.converted, 0);
@@ -5964,23 +5997,26 @@ function bindEvents() {
   });
   $("#toggleOverviewAccountSort").addEventListener("click", () => {
     overviewAccountSortMode = !overviewAccountSortMode;
-    renderDashboard();
+    renderAccountTable(snapshotTotal(latestSnapshot()));
   });
   $("#toggleOverviewGroups").addEventListener("click", () => {
-    const total = snapshotTotal(latestSnapshot());
-    const groups = total.accounts
-      .filter((row) => !row.account.archived && (row.account.includeInNetWorth !== false || row.raw !== 0))
-      .map((row) => row.account)
-      .map((account) => accountGroupName(account));
-    const uniqueGroups = [...new Set(groups)];
-    const allGroupsCollapsed = uniqueGroups.length > 0 && uniqueGroups.every((group) => collapsedOverviewGroups.has(group));
-    if (allGroupsCollapsed) {
-      collapsedOverviewGroups.clear();
-    } else {
-      uniqueGroups.forEach((group) => collapsedOverviewGroups.add(group));
-    }
+    const groups = $$("#accountTable [data-toggle-account-group]").map(heading => heading.dataset.toggleAccountGroup);
+    const expand = groups.every(group => collapsedOverviewGroups.has(group));
+    groups.forEach(group => { if (expand) collapsedOverviewGroups.delete(group); else collapsedOverviewGroups.add(group); });
     overviewGroupsInitialized = true;
-    renderDashboard();
+    syncOverviewGroupExpansion();
+  });
+  $$("[data-overview-limit]").forEach(button => button.addEventListener("click", () => {
+    const key = button.dataset.overviewLimit;
+    toggleCollapsedValue(expandedOverviewLists, key);
+    const total = snapshotTotal(latestSnapshot());
+    if (key === "groups") renderGroups(total);
+    else if (key === "types") renderTypeBreakdown(total);
+    else renderAccountTable(total);
+  }));
+  $("#dashboardRecentSnapshots").addEventListener("click", event => {
+    const button = event.target.closest("[data-recent-snapshot]");
+    if (button && state.snapshots.some(snapshot => snapshot.id === button.dataset.recentSnapshot)) openSnapshotSheet(button.dataset.recentSnapshot);
   });
   $("#toggleSnapshotLimit").addEventListener("click", () => {
     showAllSnapshots = !showAllSnapshots;
@@ -6213,7 +6249,7 @@ function bindEvents() {
     event.preventDefault();
     if (overviewGroupToggle) {
       toggleCollapsedValue(collapsedOverviewGroups, overviewGroupToggle.dataset.toggleAccountGroup);
-      renderDashboard();
+      syncOverviewGroupExpansion();
       return;
     }
     toggleCollapsedValue(collapsedAccountGroups, accountGroupToggle.dataset.toggleAccountListGroup);
@@ -6699,7 +6735,7 @@ function bindEvents() {
     const overviewGroupToggle = event.target.closest("[data-toggle-account-group]");
     if (overviewGroupToggle && !isGroupHeadingAction(event.target)) {
       toggleCollapsedValue(collapsedOverviewGroups, overviewGroupToggle.dataset.toggleAccountGroup);
-      renderDashboard();
+      syncOverviewGroupExpansion();
     }
 
     const accountGroupToggle = event.target.closest("[data-toggle-account-list-group]");
@@ -7377,7 +7413,7 @@ function reorderGroup(groupName, targetName, side = "before") {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js?v=148&ui=11").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=149&ui=11").catch(() => {});
   }
 }
 

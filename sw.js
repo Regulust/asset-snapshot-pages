@@ -1,13 +1,13 @@
 // v146: unified currency draft, validation and rate settings.
 const CACHE_PREFIX = "asset-snapshot-book-";
-const CACHE_NAME = `${CACHE_PREFIX}v148-ui11`;
+const CACHE_NAME = `${CACHE_PREFIX}v149-ui11`;
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=148&ui=11",
-  "./app.js?v=148&ui=11",
-  "./app-lock.js?v=148&ui=11",
-  "./currency-settings.js?v=148&ui=11",
+  "./styles.css?v=149&ui=11",
+  "./app.js?v=149&ui=11",
+  "./app-lock.js?v=149&ui=11",
+  "./currency-settings.js?v=149&ui=11",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-192.png",
