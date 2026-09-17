@@ -3395,64 +3395,65 @@ textarea {
 .snapshot-calendar-day {
   display: grid;
   place-items: center;
-  min-height: 32px;
-  border: 1px solid #e6ebf2;
-  border-radius: 5px;
-  background: #f7f9fc;
+  align-content: center;
+  gap: 3px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 5px 1px;
+  border: 1px solid var(--line-soft);
+  border-radius: 9px;
+  background: var(--heatmap-empty);
   color: var(--muted);
-  font-size: 11px;
-  font-weight: 800;
+  font-size: 12px;
+  font-weight: 700;
 }
-
+.snapshot-calendar-day.is-empty { visibility: hidden; }
 .snapshot-calendar-day.has-snapshot {
-  border-color: rgba(37, 99, 235, 0.35);
-  background: #dbeafe;
-  color: #1d4ed8;
+  color: var(--ink);
+  background: var(--surface-raised);
   cursor: pointer;
 }
-
+.snapshot-calendar-day.is-increase {
+  background: color-mix(in srgb, var(--red) 14%, var(--surface-panel));
+  border-color: color-mix(in srgb, var(--red) 28%, var(--line-soft));
+}
+.snapshot-calendar-day.is-decrease {
+  background: color-mix(in srgb, var(--green) 14%, var(--surface-panel));
+  border-color: color-mix(in srgb, var(--green) 28%, var(--line-soft));
+}
+.snapshot-calendar-day small {
+  font-size: clamp(9px, 2.6vw, 11px);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.snapshot-calendar-day.is-increase small, .calendar-increase-key {
+  color: color-mix(in srgb, var(--red) 65%, var(--ink));
+}
+.snapshot-calendar-day.is-decrease small, .calendar-decrease-key {
+  color: color-mix(in srgb, var(--green) 65%, var(--ink));
+}
 .snapshot-calendar-day.has-snapshot:hover,
 .snapshot-calendar-day.has-snapshot:focus-visible {
-  border-color: #2563eb;
-  outline: none;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+  border-color: var(--blue);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
 }
-
-.snapshot-calendar-day.is-selectable {
-  position: relative;
-  grid-template-columns: 1fr;
-  grid-template-rows: auto auto;
-  gap: 1px;
-  padding: 4px 20px 4px 4px;
-}
-
+.snapshot-calendar-day.is-selectable { position: relative; padding-top: 24px; }
 .snapshot-calendar-day.is-selectable input[type="checkbox"] {
   position: absolute;
-  top: 5px;
-  right: 5px;
+  top: 4px;
+  right: 4px;
 }
-
 .snapshot-calendar-day.is-selectable:has(input:checked) {
   border-color: var(--blue);
-  background: var(--surface-selected);
-  box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.16);
+  box-shadow: inset 0 0 0 1px var(--blue);
 }
-
-html[data-theme="dark"] .snapshot-calendar-day {
-  border-color: var(--line-soft);
-  background: var(--panel-tint);
+.snapshot-calendar-legend {
+  margin: 0;
   color: var(--muted);
-}
-
-html[data-theme="dark"] .snapshot-calendar-day.has-snapshot {
-  border-color: rgba(100, 165, 255, 0.38);
-  background: rgba(47, 118, 224, 0.2);
-  color: #9dc6ff;
-}
-
-html[data-theme="dark"] .snapshot-calendar-day.is-selectable:has(input:checked) {
-  border-color: var(--blue);
-  background: rgba(47, 118, 224, 0.3);
+  font-size: 11px;
+  line-height: 1.6;
 }
 
 .gain-analysis {

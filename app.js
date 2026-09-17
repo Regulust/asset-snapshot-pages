@@ -3,7 +3,7 @@ const RECOVERY_STORAGE_KEY = `${STORAGE_KEY}-recovery`;
 const CORRUPT_STORAGE_KEY = `${STORAGE_KEY}-corrupt`;
 const LAYOUT_STORAGE_KEY = `${STORAGE_KEY}-local-layout`;
 const WELCOME_STORAGE_KEY = `${STORAGE_KEY}-welcome-v142-ui8`;
-const APP_VERSION = "v0.2.3 / res v149";
+const APP_VERSION = "v0.2.3 / res v150";
 const DATA_SCHEMA_VERSION = 3;
 const DASHBOARD_MODULES = [
   { id: "hero", label: "净值区域", description: "最新净值、资产与负债概览" },
@@ -4154,7 +4154,7 @@ function renderSnapshotForm() {
   snapshotInlineTagDraft = "";
   $("#snapshotFormTitle").textContent = editingSnapshot ? "编辑历史快照" : "录入余额快照";
   $("#snapshotForm").dataset.editingSnapshotId = editingSnapshot?.id || "";
-  $("#snapshotSheet .sheet-heading span").textContent = editingSnapshot ? "修改该日期的余额、成本、标签和备注" : "批量更新各账户在同一日期的余额和成本";
+  $("#snapshotSheet .sheet-heading span").textContent = editingSnapshot ? snapshotCalendarChangeDescription(snapshotCalendarChanges().get(editingSnapshot.date)) : "批量更新各账户在同一日期的余额和成本";
   $("#snapshotForm button[type='submit']").textContent = editingSnapshot ? "保存修改" : "保存快照";
   $("#snapshotDate").value = editingSnapshot?.date || $("#snapshotDate").value || localDateString();
   const date = $("#snapshotDate").value;
@@ -4490,7 +4490,44 @@ function snapshotHistoryCalendarMonthValue(snapshots) {
   return snapshotHistoryCalendarMonth;
 }
 
+function snapshotCalendarChanges() {
+  const byDate = new Map();
+  // Match the first record opened by the history calendar for duplicate dates.
+  state.snapshots.forEach((snapshot) => {
+    if (!byDate.has(snapshot.date)) byDate.set(snapshot.date, snapshot);
+  });
+  const changes = new Map();
+  let previous = null;
+  [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)).forEach((snapshot) => {
+    const net = snapshotTotal(snapshot).net;
+    changes.set(snapshot.date, { net, delta: previous ? net - previous.net : null, previousDate: previous?.date });
+    previous = { date: snapshot.date, net };
+  });
+  return changes;
+}
+
+function compactCalendarChange(value) {
+  if (value === null || !Number.isFinite(value)) return "—";
+  if (Math.abs(value) < 0.005) return Math.abs(value) < 1e-8 ? "0" : "≈0";
+  const sign = value > 0 ? "+" : "−";
+  const units = ["", "k", "M", "B", "T"];
+  let scaled = Math.abs(value);
+  let unit = 0;
+  while (scaled >= 1000 && unit < units.length - 1) { scaled /= 1000; unit++; }
+  let rounded = Number(scaled.toFixed(scaled >= 100 ? 0 : scaled >= 10 ? 1 : 2));
+  if (rounded >= 1000) { rounded /= 1000; unit++; }
+  return unit >= units.length ? sign + Math.abs(value).toExponential(0) : sign + rounded + units[unit];
+}
+
+function snapshotCalendarChangeDescription(change) {
+  if (state.settings.privacy) return "净资产变动已隐藏";
+  if (!change) return "无比较数据";
+  const current = `净资产 ${formatMoney(change.net)}`;
+  return change.delta === null ? `${current} · 首条快照，无比较基准` : `${current} · 较 ${change.previousDate} ${change.delta > 0 ? "+" : ""}${formatMoney(Math.abs(change.delta) < 0.005 ? 0 : change.delta)}`;
+}
+
 function snapshotHistoryCalendarHtml(snapshots) {
+  const changes = snapshotCalendarChanges();
   const months = snapshotHistoryCalendarMonths(snapshots);
   const selectedMonth = snapshotHistoryCalendarMonthValue(snapshots);
   if (!selectedMonth) return emptyHtml();
@@ -4511,24 +4548,28 @@ function snapshotHistoryCalendarHtml(snapshots) {
       const dateSnapshots = byDate[date] || [];
       const latest = dateSnapshots[0];
       if (!latest) return `<span class="snapshot-calendar-day">${day}</span>`;
-      const total = snapshotTotal(latest);
+      const change = changes.get(date);
+      const amount = state.settings.privacy ? "•••" : compactCalendarChange(change?.delta ?? null);
+      const direction = state.settings.privacy || change?.delta == null || Math.abs(change.delta) < 0.005 ? "neutral" : change.delta > 0 ? "increase" : "decrease";
+      const description = `${date} · ${snapshotCalendarChangeDescription(change)}`;
       if (snapshotManageMode) {
         const dateSelectedCount = dateSnapshots.filter((snapshot) => selectedSnapshotIds.has(snapshot.id)).length;
         return selectionControlHtml({
-          className: "snapshot-calendar-day has-snapshot is-selectable",
+          className: `snapshot-calendar-day has-snapshot is-selectable is-${direction}`,
           dataName: "select-snapshot-date",
           dataValue: date,
           checked: dateSelectedCount === dateSnapshots.length,
           indeterminate: dateSelectedCount > 0 && dateSelectedCount < dateSnapshots.length,
-          label: `选择 ${date} 的 ${dateSnapshots.length} 条快照，净值 ${formatMoney(total.net)}`,
-          contentHtml: `<span>${day}</span><small>${dateSnapshots.length}</small>`,
+          label: `选择 ${dateSnapshots.length} 条快照 · ${description}`,
+          contentHtml: `<span>${day}</span><small>${amount}</small>`,
         });
       }
-      return `<button class="snapshot-calendar-day has-snapshot" data-edit-snapshot="${escapeHtml(latest.id)}" type="button" title="${escapeHtml(`${date} · ${dateSnapshots.length} 条 · ${formatMoney(total.net)}`)}"><span>${day}</span><small>${dateSnapshots.length}</small></button>`;
+      return `<button class="snapshot-calendar-day has-snapshot is-${direction}" data-edit-snapshot="${escapeHtml(latest.id)}" type="button" title="${escapeHtml(description)}" aria-label="${escapeHtml(description)}，编辑快照"><span>${day}</span><small>${amount}</small></button>`;
     }),
   ].join("");
   return `
     <div class="snapshot-calendar">
+      <p class="snapshot-calendar-legend">净资产变动 · ${escapeHtml(state.settings.baseCurrency)} · <span class="calendar-increase-key">红增</span> / <span class="calendar-decrease-key">绿减</span><br>较上次记录 · k 千 / M 百万 / B 十亿 / T 万亿</p>
       <div class="snapshot-calendar-controls">
         <button class="icon-button secondary-icon snapshot-calendar-arrow" data-history-calendar-step="prev" type="button" aria-label="查看上个月" ${monthIndex >= months.length - 1 ? "disabled" : ""}>&lt;</button>
         <label class="control-field snapshot-calendar-month-select">
@@ -7413,7 +7454,7 @@ function reorderGroup(groupName, targetName, side = "before") {
 
 function registerServiceWorker() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js?v=149&ui=11").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?v=150&ui=11").catch(() => {});
   }
 }
 
